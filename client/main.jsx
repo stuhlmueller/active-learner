@@ -51,7 +51,7 @@ class Upcoming extends React.Component {
     return (
       <ul id="upcoming">{
         this.props.entries.map((obj) => {
-          return <li key={questionKey(obj)}>{renderQuestion(obj)} (score {obj.score})</li>;
+          return <li key={questionKey(obj)}>{renderQuestion(obj)} (eig {obj.eig})</li>;
         })}
       </ul>);
   }
@@ -101,17 +101,34 @@ class OutOfQuestions extends React.Component {
 
 class App extends React.Component {
 
-  render() {
+  renderBox() {
     const current = this.props.current;
+    const infoToGain = !this.props.noInformationToGain;
+    const isThinking = this.props.isThinking;
+    if (!current) {
+      return <OutOfQuestions />
+    }
+    if (!infoToGain) {
+      return (
+        <div id="done">
+          I have learned all I could learn from you.
+        </div>);
+    }
+    if (isThinking) {
+      return <div id="thinking">Let me think...</div>;
+    }
+    return (
+      <Question id={questionKey(current)}
+                processAnswer={this.props.processAnswer}
+                question={current} />);
+  }
+
+  render() {
     return (
       <div>
         <p id="prompt">Think of a number between 1 and 100. I'll try to guess it.</p>
         <History entries={this.props.history} />
-        { current ?
-          <Question id={questionKey(current)}
-                    processAnswer={this.props.processAnswer}
-                    question={current} /> :
-          <OutOfQuestions /> }
+        {this.renderBox()}
         <Upcoming entries={this.props.upcoming} />
       </div>);
   }
@@ -123,6 +140,8 @@ App.propTypes = {
   current: PropTypes.object,
   processAnswer: PropTypes.func.isRequired,
   upcoming: PropTypes.arrayOf(PropTypes.object).isRequired,
+  noInformationToGain: PropTypes.bool.isRequired,
+  isThinking: PropTypes.bool.isRequired,
 };
 
 
@@ -135,6 +154,8 @@ class AppState extends React.Component {
       history: [],
       current: initialQuestions[0],
       upcoming: initialQuestions.slice(1),
+      noInformationToGain: false,
+      isThinking: false
     };
   }
 
@@ -145,7 +166,7 @@ class AppState extends React.Component {
         id: current.id,
         questionText: current.questionText,
         questionData: current.questionData,
-        score: current.score,
+        eig: current.eig,
         answerValue,
       }]),
       current: upcoming[0],
@@ -155,6 +176,7 @@ class AppState extends React.Component {
     if (newState.upcoming.length === 0) {
       return;
     }
+    this.setState({ isThinking: true });
     setTimeout(() => {
       const options = {
         history: newState.history,
@@ -162,9 +184,17 @@ class AppState extends React.Component {
         renderQuestion: renderQuestion
       };
       this.props.webpplFunc(options, (result) => {
+        const bestQuestion = result[0];        
         this.setState({
-          upcoming: result
+          current: bestQuestion,
+          upcoming: result.slice(1),
+          isThinking: false
         });
+        if (bestQuestion.eig < 1e-15) {
+          this.setState({
+            noInformationToGain: true
+          });
+        }
       });
     });
   }
@@ -174,7 +204,9 @@ class AppState extends React.Component {
       <App current={this.state.current}
            history={this.state.history}
            processAnswer={this.processAnswer.bind(this)}
-           upcoming={this.state.upcoming} />
+           upcoming={this.state.upcoming}
+           noInformationToGain={this.state.noInformationToGain}
+           isThinking={this.state.isThinking} />
     );
   }
 }
@@ -206,7 +238,7 @@ class WebPPLLoader extends React.Component {
   loadWebPPLModel(statusMessage, callback) {
     statusMessage('Loading model code...');
     $.ajax({
-      url: "/models/simple.wppl",
+      url: "/models/number-game.wppl",
       success: function(modelCode){
         statusMessage('Evaluating model to get webppl function...');
         webppl.run(modelCode, (s, cpsWebPPLFunc) => {

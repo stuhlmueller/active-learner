@@ -1,0 +1,127 @@
+var kl = function(P, Q) {
+  var statesP = P.support();
+  var statesQ = Q.support();
+
+  // TODO: assert that states1 = states2
+  return sum(map(
+    function(state) {
+      var scoreP = P.score(state), scoreQ = Q.score(state);
+      var probP = Math.exp(scoreP);
+      // P(i) * log[ P(i) / Q(i) ] =  P(i) * [log(P(i) - log(Q(i)))]
+      return probP * (scoreP - scoreQ);
+    },
+    statesP));
+}
+
+
+var meaning = {
+  "Is it even?": function(number, args){ return (number % 2) == 0 },
+  "Is it odd?": function(number, args){ return (number % 2) == 1 },
+  "Is it greater than #1?": function(number, target){ return number > target[0] },
+  "Is it less than #1?": function(number, target){ return number < target[0] },
+  "Is it equal to #1?": function(number, target){ return number == target[0] }
+}
+
+
+var getAnswer = function(number, input){
+  return apply(meaning[input.questionText], [number, input.questionData]);
+}
+
+
+var getAnswerPrior = function(currentPrior, question) {
+  return Infer(
+    {method: 'enumerate'},
+    function() {
+      var number = sample(currentPrior);
+      return getAnswer(number, question);
+    });
+}
+
+
+var update = function(currentPrior, question, answer){
+  Infer({method: "enumerate"}, function(){
+    var number = sample(currentPrior);
+    var predictedAnswer = getAnswer(number, question);
+    condition(answer == predictedAnswer);
+    return number;
+  })
+}
+
+
+var eig = function(currentPrior, question) {
+  var answerPrior = getAnswerPrior(currentPrior, question);
+  return expectation(Infer({method: "enumerate"}, function(){
+    var possibleAnswer = sample(answerPrior);
+    var posterior = update(currentPrior, question, possibleAnswer);
+    return kl(posterior, currentPrior);
+  }));
+  // => expected KL
+};
+
+
+var questionExists = function(question, options) {
+  var questions = options.history;
+  var xs = map(
+    function(question) {
+      return options.renderQuestion(question);
+    },
+    questions);
+  var x = options.renderQuestion(question);
+  return (_.indexOf(xs, x) !== -1);
+};
+
+var numberPrior = function() {
+  return randomInteger(100) + 1;
+}
+
+var model = function(options) {
+  // Options:
+  // - renderQuestion
+  // - history
+  // - current
+  console.log('Running in webppl with options', options);
+
+  const history = options.history || [];
+
+  var currentBeliefs = Infer(
+    {method: "enumerate"},
+    function(){
+      var number = numberPrior();
+      map(function(input) { 
+        var predictedAnswer = getAnswer(number, input)
+        condition(predictedAnswer == input.answerValue)
+      }, history);
+      return number
+    }
+  );
+
+  var allQuestions = Infer(
+    {method: "enumerate"},
+    function(){
+      var q = uniformDraw(_.keys(meaning));
+      return (["Is it even?", "Is it odd?"].indexOf(q) > -1)?
+        {questionText: q, questionData:[]} :
+      {questionText: q, questionData:[numberPrior()]}
+    }
+  );
+  
+
+  var candidates = map(function(q){ return _.extend(q, {eig: eig(currentBeliefs, q)}) }, 
+	               allQuestions.support());
+  
+  var sortedCandidates = sort(candidates, function(a, b) {return a > b;}, function(o){return o.eig;});
+  if (!options.history) {
+    return sortedCandidates;
+  } else {
+    // need to filter out previously encountered and current question
+    return filter(
+      function(question){
+        return !questionExists(question, options);
+      },
+      sortedCandidates
+    );
+  }
+};
+
+
+model
