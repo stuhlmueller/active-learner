@@ -1,3 +1,4 @@
+import _ from 'lodash';
 import events from './events';
 import React from 'react';
 import { Meteor } from 'meteor/meteor';
@@ -6,9 +7,10 @@ import { render } from 'react-dom';
 import './main.html';
 
 
-
-
-// webppl.run("flip(.5)", function(s, x){console.log(x)})
+function updateQuestionOrder(questions, callback) {
+  webppl.run("flip(.5)", function(s, x){console.log(x)})
+  return callback(_.shuffle(questions));
+}
 
 function renderAnswer(value) {
   return value ? 'Yes.' : 'No.';
@@ -130,6 +132,8 @@ class AppState extends React.Component {
         { id: 2, questionText: 'Is it greater than 30?', answerValue: false, score: 6 },
         { id: 3, questionText: 'Is it a prime?', score: 5 },
         { id: 4, questionText: 'Is it 4?', score: 3 },
+        { id: 5, questionText: 'Is it 5?', score: 3 },
+        { id: 6, questionText: 'Is it 6?', score: 3 },
       ],
     };
   }
@@ -156,6 +160,15 @@ class AppState extends React.Component {
       upcoming: upcoming.slice(1)
     };
     this.setState(newState);
+    setTimeout(() => {
+      updateQuestionOrder(
+        newState.upcoming,
+        (newUpcoming) => {
+          this.setState({
+            upcoming: newUpcoming
+          });
+        });
+    });
   }
 
   render() {
