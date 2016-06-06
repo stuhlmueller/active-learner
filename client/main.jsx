@@ -1,5 +1,4 @@
 import _ from 'lodash';
-import events from './events';
 import React from 'react';
 import { Meteor } from 'meteor/meteor';
 import { PropTypes } from 'react';
@@ -7,13 +6,20 @@ import { render } from 'react-dom';
 import './main.html';
 
 
-function updateQuestionOrder(questions, callback) {
-  webppl.run("flip(.5)", function(s, x){console.log(x)})
-  return callback(_.shuffle(questions));
-}
-
 function renderAnswer(value) {
   return value ? 'Yes.' : 'No.';
+}
+
+function renderQuestion(question) {
+  if (question.questionData) {
+    return question.questionText.replace('#1', question.questionData[0]);
+  } else {
+    return question;
+  }
+}
+
+function questionKey(question) {
+  return question.questionText + JSON.stringify(question.questionData);
 }
 
 
@@ -24,8 +30,8 @@ class History extends React.Component {
       <ul id="history">{
         this.props.entries.map((obj) => {
           return (
-            <li key={obj.id}>
-              <span className="questionText">{obj.questionText}</span> {' '}
+            <li key={questionKey(obj)}>
+              <span className="questionText">{renderQuestion(obj)}</span> {' '}
               <span className="answerText">{renderAnswer(obj.answerValue)}</span>
             </li>);
         })}
@@ -45,7 +51,7 @@ class Upcoming extends React.Component {
     return (
       <ul id="upcoming">{
         this.props.entries.map((obj) => {
-          return <li key={obj.id}>{obj.questionText} (score {obj.score})</li>;
+          return <li key={questionKey(obj)}>{renderQuestion(obj)} (score {obj.score})</li>;
         })}
       </ul>);
   }
@@ -66,8 +72,8 @@ class Question extends React.Component {
   render() {
     return (
       <div id="question">
-        <div key={this.props.id} id="questionText">
-          {this.props.text}
+        <div key={questionKey(this.props.question)} id="questionText">
+          {renderQuestion(this.props.question)}
         </div>
         <div id="answerInputs">
           <input type="button" value="yes" onClick={(e)=>{this.handleAnswer(e, true)}} />
@@ -79,9 +85,8 @@ class Question extends React.Component {
 }
 
 Question.propTypes = {
-  id: PropTypes.number.isRequired,
   processAnswer: PropTypes.func.isRequired,
-  text: PropTypes.string.isRequired,
+  question: PropTypes.object.isRequired,
 };
 
 
@@ -103,9 +108,9 @@ class App extends React.Component {
         <p id="prompt">Think of a number between 1 and 100. I'll try to guess it.</p>
         <History entries={this.props.history} />
         { current ?
-          <Question id={current.id}
+          <Question id={questionKey(current)}
                     processAnswer={this.props.processAnswer}
-                    text={current.questionText} /> :
+                    question={current} /> :
           <OutOfQuestions /> }
         <Upcoming entries={this.props.upcoming} />
       </div>);
@@ -125,26 +130,12 @@ class AppState extends React.Component {
 
   constructor(props) {
     super(props);
+    const initialQuestions = this.props.initialWebPPLResult;
     this.state = {
       history: [],
-      current: { id: 1, questionText: 'Is it even?', answerValue: true, score: 8 },
-      upcoming: [
-        { id: 2, questionText: 'Is it greater than 30?', answerValue: false, score: 6 },
-        { id: 3, questionText: 'Is it a prime?', score: 5 },
-        { id: 4, questionText: 'Is it 4?', score: 3 },
-        { id: 5, questionText: 'Is it 5?', score: 3 },
-        { id: 6, questionText: 'Is it 6?', score: 3 },
-      ],
+      current: initialQuestions[0],
+      upcoming: initialQuestions.slice(1),
     };
-  }
-
-  componentDidMount() {
-    this.subscriberId = events.subscribe(
-      'update-question-scores', (e) => this.handleStateUpdate(e));
-  }
-
-  componentWillUnmount() {
-    events.unsubscribe('update-question-scores', this.subscriberId);
   }
 
   processAnswer(answerValue) {
@@ -153,6 +144,7 @@ class AppState extends React.Component {
       history: history.concat([{
         id: current.id,
         questionText: current.questionText,
+        questionData: current.questionData,
         score: current.score,
         answerValue,
       }]),
@@ -160,14 +152,20 @@ class AppState extends React.Component {
       upcoming: upcoming.slice(1)
     };
     this.setState(newState);
+    if (newState.upcoming.length === 0) {
+      return;
+    }
     setTimeout(() => {
-      updateQuestionOrder(
-        newState.upcoming,
-        (newUpcoming) => {
-          this.setState({
-            upcoming: newUpcoming
-          });
+      const options = {
+        history: newState.history,
+        current: newState.current,
+        renderQuestion: renderQuestion
+      };
+      this.props.webpplFunc(options, (result) => {
+        this.setState({
+          upcoming: result
         });
+      });
     });
   }
 
@@ -182,6 +180,78 @@ class AppState extends React.Component {
 }
 
 
+class WebPPLLoader extends React.Component {
+
+  constructor(props) {
+    super(props);
+    this.state = {
+      loaded: false,
+      statusMessage: 'Initializing...',
+      webpplFunc: null
+    };
+  }
+
+  componentDidMount() {
+    this.loadWebPPLModel(this.statusMessage.bind(this), (webpplFunc) => {
+      this.setState({ webpplFunc });
+      webpplFunc({}, (result) => {
+        this.setState({
+          initialWebPPLResult: result,
+          loaded: true
+        });
+      });
+    });
+  }
+
+  loadWebPPLModel(statusMessage, callback) {
+    statusMessage('Loading model code...');
+    $.ajax({
+      url: "/models/simple.wppl",
+      success: function(modelCode){
+        statusMessage('Evaluating model to get webppl function...');
+        webppl.run(modelCode, (s, cpsWebPPLFunc) => {
+          statusMessage('Got compiled webppl function.');
+          const webpplFunc = (arg, callback) => {
+            var f = cpsWebPPLFunc({}, (s, result) => {
+              statusMessage('Got result from running webppl function: ' +
+                            JSON.stringify(result));
+              callback(result);
+            }, '', arg);
+            while (f) {
+              f = f();
+            }
+          };
+          callback(webpplFunc);
+        });
+      }
+    });
+  }  
+
+  statusMessage(message) {
+    console.log(message);
+    this.setState({
+      statusMessage: message
+    });
+  }
+
+  render() {
+    if (this.state.loaded) {
+      return (
+        <div>
+          <AppState webpplFunc={this.state.webpplFunc}
+                    initialWebPPLResult={this.state.initialWebPPLResult} />
+        </div>);
+    } else {
+      return (
+        <div id="loader">
+          {this.state.statusMessage}
+        </div>);
+    }
+  }
+
+}
+
+
 Meteor.startup(() => {
-  render(<AppState />, document.getElementById('app'));
+  render(<WebPPLLoader />, document.getElementById('app'));
 });
