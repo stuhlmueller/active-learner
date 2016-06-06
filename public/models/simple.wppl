@@ -1,0 +1,40 @@
+var questionExists = function(question, options) {
+  var questions = options.history.concat([options.current]);
+  var xs = map(
+    function(question) {
+      return options.renderQuestion(question);
+    },
+    questions);
+  var x = options.renderQuestion(question);
+  return (_.indexOf(xs, x) !== -1);
+};
+
+var model = function(options) {
+  // Options:
+  // - renderQuestion
+  // - history
+  // - current
+  console.log('Running in webppl with options', options);
+  var rand = function(){ return uniform(0, 1) * 10; };
+  var candidates = [
+    { questionText: 'Is it greater than #1?', questionData: [5], score: rand() },
+    { questionText: 'Is it greater than #1?', questionData: [10], score: rand() },
+    { questionText: 'Is it greater than #1?', questionData: [15], score: rand() },
+    { questionText: 'Is it greater than #1?', questionData: [20], score: rand() },
+    { questionText: 'Is it greater than #1?', questionData: [25], score: rand() },
+  ];
+  var sortedCandidates = sort(candidates, function(a, b) {return a > b;}, function(o){return o.score;});
+  if (!options.history && !options.current) {
+    return sortedCandidates;
+  } else {
+    // need to filter out previously encountered and current question
+    return filter(
+      function(question){
+        return !questionExists(question, options);
+      },
+      sortedCandidates
+    );
+  }
+};
+
+model
