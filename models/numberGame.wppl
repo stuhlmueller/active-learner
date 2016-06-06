@@ -23,56 +23,63 @@ var isEven = function(number){
 	return (number % 2) == 0
 }
 
+var parseQuestion = function(question){
+	var splt = question.split(' than ' )
+	return splt.length==2 ? 
+		{question: splt[0], target: splt[1].split('?')[0]} :
+		{question: question}
+}
+
 var questions = {
 	"is it even?": isEven,
 	"is it odd?": isOdd,
-	"greater than?": function(number, target){ return number > target },
-	"less than?": function(number, target){ return number < target },
-	"equal to?": function(number, target){ return number == target }
+	"is it greater": function(number, target){ return number > target },
+	"is it less": function(number, target){ return number < target },
+	"equal to": function(number, target){ return number == target }
 }
 
 var numberPrior = Infer({method: "enumerate"}, 
 	function(){ return randomInteger(11); }
 )
 
-var numberPosterior = function(question) {
-	Infer({method: "enumerate"}, 
-		function(){ return model(question); }
-	)
-}
-
-var getAnswer = function(number, args){
-	var n = args.target ? [number, args.target] : number;
-	var q = args.question;
+var getAnswer = function(number, question){
+	var parsedQ = parseQuestion(question);
+	var n = parsedQ.target ? [number, parsedQ.target] : number;
+	var q = parsedQ.question;
 	return apply(questions[q],n);
 }
 
-var answerPrior = function(args) {
-	var number = sample(args.currentPrior);
-	return getAnswer(number, args);
+var answerPrior = function(currentPrior, question) {
+	var number = sample(currentPrior);
+	return getAnswer(number, question);
 }
 
-
-var update = function(args, answer){
+var update = function(currentPrior, question, answer){
 	Infer({method: "enumerate"}, function(){
-		var number = sample(args.currentPrior);
-		var predictedAnswer = getAnswer(number, args);
+		var number = sample(currentPrior);
+		var predictedAnswer = getAnswer(number, question);
 		condition(answer == predictedAnswer);
 		return number;
 	})
 }
 
-var eig = function(args) {
+var eig = function(currentPrior, question) {
 	return expectation(Infer({method: "enumerate"}, function(){
-		var possibleAnswer = answerPrior(args);
-		var posterior = update(args, possibleAnswer);
-		return kl(posterior, args.currentPrior);
+		var possibleAnswer = answerPrior(currentPrior, question);
+		var posterior = update(currentPrior, question, possibleAnswer);
+		return kl(posterior, currentPrior);
 	}));
 	// => expected KL
 };
 
-map(function(q){ return eig({currentPrior: numberPrior, question: q}) },
- ["is it even?", "is it odd?"])
+map(function(q){ return eig(numberPrior, q) },
+ ["is it even?", "is it odd?", "is it greater than 8?"])
+
+
+// "is it even?".split(' than ')
+
+
+
 // model(numberPrior, "is it even?")
 
 // answerPrior(currentPrior, {question: question});
