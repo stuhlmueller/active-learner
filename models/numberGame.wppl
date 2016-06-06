@@ -15,97 +15,77 @@ var kl = function(P, Q) {
         statesP));
 }
 
-var isOdd = function(number){
-	return (number % 2) == 1
+var sampleInput = [
+{
+	questionText: "is it odd?",
+	questionData: [],
+	answerValue: true
+},
+{
+	questionText: "is it greater than #1?",
+	questionData: [4],
+	answerValue: true
+}]
+
+
+var meaning = {
+	"is it even?": function(number, args){ return (number % 2) == 0 },
+	"is it odd?": function(number, args){ return (number % 2) == 1 },
+	"is it greater than #1?": function(number, target){ return number > target[0] },
+	"is it less than #1?": function(number, target){ return number < target[0] },
+	"is it equal to #1?": function(number, target){ return number == target[0] }
 }
 
-var isEven = function(number){
-	return (number % 2) == 0
+var getAnswer = function(number, input){
+	return apply(meaning[input.questionText], [number, input.questionData]);
 }
 
-var questions = {
-	"is it even?": isEven,
-	"is it odd?": isOdd,
-	"greater than?": function(number, target){ return number > target },
-	"less than?": function(number, target){ return number < target },
-	"equal to?": function(number, target){ return number == target }
-}
-
-var update = function(args){
-	Infer({method: "enumerate"}, function(){
-
-		var number = sample(args.currentPrior);
-		var n = args.target ? [number, args.target] : number
-		var q = args.question
-
-		var predictedAnswer = apply(questions[q],n)
-
-		condition(args.actualAnswer == predictedAnswer) 
-
-		return number
-	})
-}
-
-var numberPrior = Infer({method: "enumerate"}, 
-	function(){
-		return randomInteger(11);
-	})
-
-var numberPosterior = function(question) {
-	Infer({method: "enumerate"}, 
-		function(){
-			return model(question);
-		})
-}
-
-// numberPosterior({question: "is it even?", 
-// 				currentPrior: function(){randomInteger(11)}})
-
-// map(function(q){ return KL(numberPosterior(q), numberPrior) }, 
-// 	[
-// 	{question: "is it even?"}, 
-// 	{question: "is it odd?"}
-// 	])
-
-
-var answerPrior = function(currentPrior, args) {
+var answerPrior = function(currentPrior, question) {
 	var number = sample(currentPrior);
-	var n = args.target ? [number, args.target] : number
-	var q = args.question
-
-	var predictedAnswer = apply(questions[q],n)
-	return predictedAnswer
+	return getAnswer(number, question);
 }
 
-var model = function(currentPrior, question) {
+var update = function(currentPrior, question, answer){
+	Infer({method: "enumerate"}, function(){
+		var number = sample(currentPrior);
+		var predictedAnswer = getAnswer(number, question);
+		condition(answer == predictedAnswer);
+		return number;
+	})
+}
+
+var eig = function(currentPrior, question) {
 	return expectation(Infer({method: "enumerate"}, function(){
-		var answer = answerPrior(currentPrior, {question: question});
-		var posterior = update({currentPrior: currentPrior, 
-								question: question, 
-								actualAnswer:answer})
+		var possibleAnswer = answerPrior(currentPrior, question);
+		var posterior = update(currentPrior, question, possibleAnswer);
 		return kl(posterior, currentPrior);
 	}));
 	// => expected KL
 };
 
-map(function(q){ return model(numberPrior, q)}, ["is it even?", "is it odd?"])
-// model(numberPrior, "is it even?")
+var currentBeliefs = Infer({method: "enumerate"},
+	function(){
+		var number = randomInteger(10);
+		map(function(input) { 
+			var predictedAnswer = apply(
+				meaning[input.questionText], [number, input.questionData]
+			)
+			condition(predictedAnswer == input.answerValue)
+		}, sampleInput)
+		return number
+	}
+)
 
-// answerPrior(currentPrior, {question: question});
-
-// KL(numberPosterior({question: "is it even?"}), numberPrior)
-
-// numberPosterior({question: "is it even?", target:4})
-// numberPrior
-// model({question: "greater than?", target:4})
-
-// var args = {question: "greater than?", target:4}
-// args.target ? [args.target, n] : number
+var allQuestions = Infer({method: "enumerate"},
+	function(){
+		var q = uniformDraw(_.keys(meaning));
+		return (["is it even?", "is it odd?"].indexOf(q) > -1)?
+			{questionText: q, questionData:[]} :
+			{questionText: q, questionData:[randomInteger(10)]}
+	}
+)
 
 
-// var supp = EIG({
-//     mNameSample: function() { uniformDraw(['preQuestion', 'postQuestion']),
-//     mFuncs: {preQuestion: preQuestion, postQuestion: postQuestion},
-//     xSample: function() { return questions },
-//     ySample: function() { return randomInteger(10) }
-// }).support();
+map(function(q){ return _.extend(q, {eig: eig(currentBeliefs, q)}) }, 
+	allQuestions.support() )
+
