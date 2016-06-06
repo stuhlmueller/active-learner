@@ -15,17 +15,28 @@ var kl = function(P, Q) {
         statesP));
 }
 
-var sampleInput = [
-{
-	questionText: "is it odd?",
-	questionData: [],
-	answerValue: true
-},
-{
-	questionText: "is it greater than #1?",
-	questionData: [4],
-	answerValue: true
-}]
+
+var sampleInput = []
+// {
+// 	questionText: "is it odd?",
+// 	questionData: [],
+// 	answerValue: true
+// },
+// {
+// 	questionText: "is it greater than #1?",
+// 	questionData: [40],
+// 	answerValue: true
+// },
+// {
+// 	questionText: "is it greater than #1?",
+// 	questionData: [60],
+// 	answerValue: true
+// },
+// {
+// 	questionText: "is it greater than #1?",
+// 	questionData: [80],
+// 	answerValue: false
+// }]
 
 
 var meaning = {
@@ -40,9 +51,13 @@ var getAnswer = function(number, input){
 	return apply(meaning[input.questionText], [number, input.questionData]);
 }
 
-var answerPrior = function(currentPrior, question) {
-	var number = sample(currentPrior);
-	return getAnswer(number, question);
+var getAnswerPrior = function(currentPrior, question) {
+	return Infer(
+		{method: 'enumerate'},
+		function() {
+			var number = sample(currentPrior);
+			return getAnswer(number, question);
+		});
 }
 
 var update = function(currentPrior, question, answer){
@@ -55,8 +70,9 @@ var update = function(currentPrior, question, answer){
 }
 
 var eig = function(currentPrior, question) {
+	var answerPrior = getAnswerPrior(currentPrior, question);
 	return expectation(Infer({method: "enumerate"}, function(){
-		var possibleAnswer = answerPrior(currentPrior, question);
+		var possibleAnswer = sample(answerPrior);
 		var posterior = update(currentPrior, question, possibleAnswer);
 		return kl(posterior, currentPrior);
 	}));
@@ -65,11 +81,9 @@ var eig = function(currentPrior, question) {
 
 var currentBeliefs = Infer({method: "enumerate"},
 	function(){
-		var number = randomInteger(10);
+		var number = randomInteger(100);
 		map(function(input) { 
-			var predictedAnswer = apply(
-				meaning[input.questionText], [number, input.questionData]
-			)
+			var predictedAnswer = getAnswer(number, input)
 			condition(predictedAnswer == input.answerValue)
 		}, sampleInput)
 		return number
@@ -81,11 +95,16 @@ var allQuestions = Infer({method: "enumerate"},
 		var q = uniformDraw(_.keys(meaning));
 		return (["is it even?", "is it odd?"].indexOf(q) > -1)?
 			{questionText: q, questionData:[]} :
-			{questionText: q, questionData:[randomInteger(10)]}
+			{questionText: q, questionData:[randomInteger(100)]}
 	}
 )
 
 
-map(function(q){ return _.extend(q, {eig: eig(currentBeliefs, q)}) }, 
-	allQuestions.support() )
+
+sort(map(function(q){ return _.extend(q, {eig: eig(currentBeliefs, q)}) }, 
+	allQuestions.support() ),
+function(a, b) {return a < b;}, function(o){return o.eig;})
+
+
+
 
