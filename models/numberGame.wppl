@@ -1,0 +1,111 @@
+// ~/webppl-infer/webppl numberGame.wppl 
+
+var kl = function(P, Q) {
+    var statesP = P.support();
+    var statesQ = Q.support();
+
+    // TODO: assert that states1 = states2
+    return sum(map(
+        function(state) {
+            var scoreP = P.score(state), scoreQ = Q.score(state);
+            var probP = Math.exp(scoreP);
+            // P(i) * log[ P(i) / Q(i) ] =  P(i) * [log(P(i) - log(Q(i)))]
+            return probP * (scoreP - scoreQ);
+        },
+        statesP));
+}
+
+var isOdd = function(number){
+	return (number % 2) == 1
+}
+
+var isEven = function(number){
+	return (number % 2) == 0
+}
+
+var questions = {
+	"is it even?": isEven,
+	"is it odd?": isOdd,
+	"greater than?": function(number, target){ return number > target },
+	"less than?": function(number, target){ return number < target },
+	"equal to?": function(number, target){ return number == target }
+}
+
+var update = function(args){
+	Infer({method: "enumerate"}, function(){
+
+		var number = sample(args.currentPrior);
+		var n = args.target ? [number, args.target] : number
+		var q = args.question
+
+		var predictedAnswer = apply(questions[q],n)
+
+		condition(args.actualAnswer == predictedAnswer) 
+
+		return number
+	})
+}
+
+var numberPrior = Infer({method: "enumerate"}, 
+	function(){
+		return randomInteger(11);
+	})
+
+var numberPosterior = function(question) {
+	Infer({method: "enumerate"}, 
+		function(){
+			return model(question);
+		})
+}
+
+// numberPosterior({question: "is it even?", 
+// 				currentPrior: function(){randomInteger(11)}})
+
+// map(function(q){ return KL(numberPosterior(q), numberPrior) }, 
+// 	[
+// 	{question: "is it even?"}, 
+// 	{question: "is it odd?"}
+// 	])
+
+
+var answerPrior = function(currentPrior, args) {
+	var number = sample(currentPrior);
+	var n = args.target ? [number, args.target] : number
+	var q = args.question
+
+	var predictedAnswer = apply(questions[q],n)
+	return predictedAnswer
+}
+
+var model = function(currentPrior, question) {
+	return expectation(Infer({method: "enumerate"}, function(){
+		var answer = answerPrior(currentPrior, {question: question});
+		var posterior = update({currentPrior: currentPrior, 
+								question: question, 
+								actualAnswer:answer})
+		return kl(posterior, currentPrior);
+	}));
+	// => expected KL
+};
+
+map(function(q){ return model(numberPrior, q)}, ["is it even?", "is it odd?"])
+// model(numberPrior, "is it even?")
+
+// answerPrior(currentPrior, {question: question});
+
+// KL(numberPosterior({question: "is it even?"}), numberPrior)
+
+// numberPosterior({question: "is it even?", target:4})
+// numberPrior
+// model({question: "greater than?", target:4})
+
+// var args = {question: "greater than?", target:4}
+// args.target ? [args.target, n] : number
+
+
+// var supp = EIG({
+//     mNameSample: function() { uniformDraw(['preQuestion', 'postQuestion']),
+//     mFuncs: {preQuestion: preQuestion, postQuestion: postQuestion},
+//     xSample: function() { return questions },
+//     ySample: function() { return randomInteger(10) }
+// }).support();
