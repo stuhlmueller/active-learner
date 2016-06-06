@@ -31,64 +31,48 @@ var questions = {
 	"equal to?": function(number, target){ return number == target }
 }
 
-var update = function(args){
-	Infer({method: "enumerate"}, function(){
-
-		var number = sample(args.currentPrior);
-		var n = args.target ? [number, args.target] : number
-		var q = args.question
-
-		var predictedAnswer = apply(questions[q],n)
-
-		condition(args.actualAnswer == predictedAnswer) 
-
-		return number
-	})
-}
-
 var numberPrior = Infer({method: "enumerate"}, 
-	function(){
-		return randomInteger(11);
-	})
+	function(){ return randomInteger(11); }
+)
 
 var numberPosterior = function(question) {
 	Infer({method: "enumerate"}, 
-		function(){
-			return model(question);
-		})
+		function(){ return model(question); }
+	)
 }
 
-// numberPosterior({question: "is it even?", 
-// 				currentPrior: function(){randomInteger(11)}})
-
-// map(function(q){ return KL(numberPosterior(q), numberPrior) }, 
-// 	[
-// 	{question: "is it even?"}, 
-// 	{question: "is it odd?"}
-// 	])
-
-
-var answerPrior = function(currentPrior, args) {
-	var number = sample(currentPrior);
-	var n = args.target ? [number, args.target] : number
-	var q = args.question
-
-	var predictedAnswer = apply(questions[q],n)
-	return predictedAnswer
+var getAnswer = function(number, args){
+	var n = args.target ? [number, args.target] : number;
+	var q = args.question;
+	return apply(questions[q],n);
 }
 
-var model = function(currentPrior, question) {
+var answerPrior = function(args) {
+	var number = sample(args.currentPrior);
+	return getAnswer(number, args);
+}
+
+
+var update = function(args, answer){
+	Infer({method: "enumerate"}, function(){
+		var number = sample(args.currentPrior);
+		var predictedAnswer = getAnswer(number, args);
+		condition(answer == predictedAnswer);
+		return number;
+	})
+}
+
+var eig = function(args) {
 	return expectation(Infer({method: "enumerate"}, function(){
-		var answer = answerPrior(currentPrior, {question: question});
-		var posterior = update({currentPrior: currentPrior, 
-								question: question, 
-								actualAnswer:answer})
-		return kl(posterior, currentPrior);
+		var possibleAnswer = answerPrior(args);
+		var posterior = update(args, possibleAnswer);
+		return kl(posterior, args.currentPrior);
 	}));
 	// => expected KL
 };
 
-map(function(q){ return model(numberPrior, q)}, ["is it even?", "is it odd?"])
+map(function(q){ return eig({currentPrior: numberPrior, question: q}) },
+ ["is it even?", "is it odd?"])
 // model(numberPrior, "is it even?")
 
 // answerPrior(currentPrior, {question: question});
