@@ -27,12 +27,12 @@ var questionTypes = {
   },
   "Is #1 the best movie?": {
     meaning: function(state, data){
-      return data[0] === state;
+      return data[0] === state[0];
     },
   },
   "Is #1 the worst movie?": {
     meaning: function(state, data){
-      return data[data.length-1] === state;
+      return data[0] === state[state.length-1];
     },
   },
   "Is #1 a better movie than #2?": {
