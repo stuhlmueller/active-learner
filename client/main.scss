@@ -7,7 +7,7 @@ div#question, div#done, div#thinking {
     box-shadow: 2px 2px 15px #ccc;    
 }
 
-ul#history li, ul#upcoming li {
+ul#history li, ul#upcoming-questions li {
     margin-top: .3em;
 }
 
@@ -17,7 +17,7 @@ ul#history {
     }
 }
 
-ul#upcoming {
+ul#upcoming-questions {
     color: #ccc;
 }
 

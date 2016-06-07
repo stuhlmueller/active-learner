@@ -1,0 +1,141 @@
+
+// Utils
+
+var isDivisibleByAny = function(i, q, n) {
+  if (i > q) {
+    return false;
+  } else {
+    if (n % i === 0) {
+      return true;
+    } else {
+      return isDivisibleByAny(i + 1, q, n);
+    }
+  }
+};
+
+var isPrime = function(n) {
+  if (n < 2) {
+    return false;
+  }
+  var q = Math.floor(Math.sqrt(n));
+  return !isDivisibleByAny(2, q, n);
+};
+
+var toLog2 = function(x) {
+  return x / Math.log(2);
+}
+
+var KL = function(P, Q) {
+  var statesP = P.support();
+  var statesQ = Q.support();
+  return sum(map(
+    function(state) {
+      var scoreP = toLog2(P.score(state));
+      var scoreQ = toLog2(Q.score(state));
+      var probP = Math.pow(2, scoreP);
+      // P(i) * log[ P(i) / Q(i) ] =  P(i) * [log(P(i) - log(Q(i)))]
+      return probP * (scoreP - scoreQ);
+    },
+    statesP));
+};
+
+
+// Model
+
+var sampleAnswer = function(state, question){
+  return apply(meanings[question.questionText], [state, question.questionData]);
+};
+
+var makeAnswerPrior = function(statePrior, question) {
+  return Infer(
+    {method: 'enumerate'},
+    function() {
+      var state = sample(statePrior);
+      return sampleAnswer(state, question);
+    });
+};
+
+var update = function(statePrior, question, answer){
+  Infer({method: "enumerate"}, function(){
+    var state = sample(statePrior);
+    var sampledAnswer = sampleAnswer(state, question);
+    condition(answer == sampledAnswer);
+    return state;
+  });
+};
+
+var expectedInfoGain = function(statePrior, question) {
+  var answerPrior = makeAnswerPrior(statePrior, question);
+  return expectation(Infer({method: "enumerate"}, function(){
+    var answer = sample(answerPrior);
+    var statePosterior = update(statePrior, question, answer);
+    return KL(statePosterior, statePrior);
+  }));
+};
+
+
+var questionExists = function(question, options) {
+  var questions = options.history;
+  var xs = map(
+    function(question) {
+      return options.renderQuestion(question);
+    },
+    questions);
+  var x = options.renderQuestion(question);
+  return (_.indexOf(xs, x) !== -1);
+};
+
+
+var model = function(options) {
+  
+  // Options:
+  // - renderQuestion
+  // - history
+  // - current
+  
+  console.log('Running in webppl with options', options);
+
+  const history = options.history || [];
+
+  var stateDist = Infer(
+    {method: "enumerate"},
+    function() {
+      var state = statePrior();
+      map(
+        function(question) {
+          var sampledAnswer = sampleAnswer(state, question)
+          condition(sampledAnswer == question.answerValue)
+        },
+        history);
+      return state;
+    }
+  );
+
+  var allQuestions = generateQuestions(stateDist);
+
+  var addExpectedInfoGain = function(questions) {
+    return map(
+      function(question){
+        return _.extend(question, {expectedInfoGain: expectedInfoGain(stateDist, question)});
+      },
+      questions);
+  };
+
+  var candidates = addExpectedInfoGain(allQuestions);
+
+  var sortedCandidates = sort(
+    candidates,
+    function(a, b) { return a > b; },
+    function(o) { return o.expectedInfoGain; });
+
+  if (!options.history) {
+    return sortedCandidates;
+  }
+
+  return filter(
+    function(question){
+      return !questionExists(question, options);
+    },
+    sortedCandidates
+  );
+};

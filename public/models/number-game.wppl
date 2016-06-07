@@ -1,40 +1,6 @@
-// Utils
-
-var isDivisibleByAny = function(i, q, n) {
-  if (i > q) {
-    return false;
-  } else {
-    if (n % i === 0) {
-      return true;
-    } else {
-      return isDivisibleByAny(i + 1, q, n);
-    }
-  }
+var statePrior = function() {
+  return randomInteger(100) + 1;
 };
-
-var isPrime = function(n) {
-  if (n < 2) {
-    return false;
-  }
-  var q = Math.floor(Math.sqrt(n));
-  return !isDivisibleByAny(2, q, n);
-};
-
-var KL = function(P, Q) {
-  var statesP = P.support();
-  var statesQ = Q.support();
-  return sum(map(
-    function(state) {
-      var scoreP = P.score(state), scoreQ = Q.score(state);
-      var probP = Math.exp(scoreP);
-      // P(i) * log[ P(i) / Q(i) ] =  P(i) * [log(P(i) - log(Q(i)))]
-      return probP * (scoreP - scoreQ);
-    },
-    statesP));
-};
-
-
-// State and question specification
 
 var meanings = {
   "Is it even?": function(state){ return (state % 2) == 0 },
@@ -48,124 +14,17 @@ var meanings = {
   "Is it divisible by 5?": function(state){ return state % 5 === 0; }
 };
 
-var statePrior = function() {
-  return randomInteger(100) + 1;
-};
-
 var generateQuestions = function(stateDist) {
   return Infer(
     {method: "enumerate"},
     function() {
       var q = uniformDraw(_.keys(meanings));
       if (q.indexOf('#1') > -1) {
-        return {questionText: q, questionData: [statePrior()]};
+        return {questionText: q, questionData: [statePrior()], type: 'bool'};
       } else {
-        return {questionText: q, questionData:[]};
+        return {questionText: q, questionData:[], type: 'bool'};
       }
     }
   ).support();
 };
 
-
-// Model
-
-var sampleAnswer = function(state, question){
-  return apply(meanings[question.questionText], [state, question.questionData]);
-};
-
-var makeAnswerPrior = function(statePrior, question) {
-  return Infer(
-    {method: 'enumerate'},
-    function() {
-      var state = sample(statePrior);
-      return sampleAnswer(state, question);
-    });
-};
-
-var update = function(statePrior, question, answer){
-  Infer({method: "enumerate"}, function(){
-    var state = sample(statePrior);
-    var sampledAnswer = sampleAnswer(state, question);
-    condition(answer == sampledAnswer);
-    return state;
-  });
-};
-
-var expectedInfoGain = function(statePrior, question) {
-  var answerPrior = makeAnswerPrior(statePrior, question);
-  return expectation(Infer({method: "enumerate"}, function(){
-    var answer = sample(answerPrior);
-    var statePosterior = update(statePrior, question, answer);
-    return KL(statePosterior, statePrior);
-  }));
-};
-
-
-var questionExists = function(question, options) {
-  var questions = options.history;
-  var xs = map(
-    function(question) {
-      return options.renderQuestion(question);
-    },
-    questions);
-  var x = options.renderQuestion(question);
-  return (_.indexOf(xs, x) !== -1);
-};
-
-
-var model = function(options) {
-  
-  // Options:
-  // - renderQuestion
-  // - history
-  // - current
-  
-  console.log('Running in webppl with options', options);
-
-  const history = options.history || [];
-
-  var stateDist = Infer(
-    {method: "enumerate"},
-    function() {
-      var state = statePrior();
-      map(
-        function(question) {
-          var sampledAnswer = sampleAnswer(state, question)
-          condition(sampledAnswer == question.answerValue)
-        },
-        history);
-      return state;
-    }
-  );
-
-  var allQuestions = generateQuestions(stateDist);
-
-  var addExpectedInfoGain = function(questions) {
-    return map(
-      function(question){
-        return _.extend(question, {eig: expectedInfoGain(stateDist, question)});
-      },
-      questions);
-  };
-
-  var candidates = addExpectedInfoGain(allQuestions);
-
-  var sortedCandidates = sort(
-    candidates,
-    function(a, b) { return a > b; },
-    function(o) { return o.eig; });
-
-  if (!options.history) {
-    return sortedCandidates;
-  }
-
-  return filter(
-    function(question){
-      return !questionExists(question, options);
-    },
-    sortedCandidates
-  );
-};
-
-
-model

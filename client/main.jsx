@@ -6,8 +6,24 @@ import { render } from 'react-dom';
 import './main.html';
 
 
-function renderAnswer(value) {
-  return value ? 'Yes.' : 'No.';
+
+const models = {
+  'number-game': {
+    url: "/models/number-game.wppl",
+    prompt: "Think of a number between 1 and 100. I'll try to guess it."
+  }
+};
+
+const modelID = 'number-game';
+
+
+
+function renderAnswer(question) {
+  if (question.type === 'bool') {
+    return question.answerValue ? 'Yes.' : 'No.';
+  } else {
+    throw new Error("Can't handle question type: " + question.type);
+  }
 }
 
 function renderQuestion(question) {
@@ -32,7 +48,7 @@ class History extends React.Component {
           return (
             <li key={questionKey(obj)}>
               <span className="questionText">{renderQuestion(obj)}</span> {' '}
-              <span className="answerText">{renderAnswer(obj.answerValue)}</span>
+              <span className="answerText">{renderAnswer(obj)}</span>
             </li>);
         })}
       </ul>);
@@ -45,20 +61,20 @@ History.propTypes = {
 };
 
 
-class Upcoming extends React.Component {
+class UpcomingQuestions extends React.Component {
 
   render() {
     return (
-      <ul id="upcoming">{
+      <ul id="upcoming-questions">{
         this.props.entries.map((obj) => {
-          return <li key={questionKey(obj)}>{renderQuestion(obj)} (eig {obj.eig})</li>;
+          return <li key={questionKey(obj)}>{renderQuestion(obj)} ({obj.expectedInfoGain.toFixed(2)} bits)</li>;
         })}
       </ul>);
   }
 
 }
 
-Upcoming.propTypes = {
+UpcomingQuestions.propTypes = {
   entries: PropTypes.arrayOf(PropTypes.object).isRequired,
 };
 
@@ -102,10 +118,10 @@ class OutOfQuestions extends React.Component {
 class App extends React.Component {
 
   renderBox() {
-    const current = this.props.current;
-    const infoToGain = !this.props.noInformationToGain;
+    const currentQuestion = this.props.currentQuestion;
+    const infoToGain = !this.props.noInfoToGain;
     const isThinking = this.props.isThinking;
-    if (!current) {
+    if (!currentQuestion) {
       return <OutOfQuestions />
     }
     if (!infoToGain) {
@@ -118,29 +134,30 @@ class App extends React.Component {
       return <div id="thinking">Let me think...</div>;
     }
     return (
-      <Question id={questionKey(current)}
+      <Question id={questionKey(currentQuestion)}
                 processAnswer={this.props.processAnswer}
-                question={current} />);
+                question={currentQuestion} />);
   }
 
   render() {
     return (
       <div>
-        <p id="prompt">Think of a number between 1 and 100. I'll try to guess it.</p>
+        <p id="prompt">{models[modelID].prompt}</p>
         <History entries={this.props.history} />
         {this.renderBox()}
-        <Upcoming entries={this.props.upcoming} />
+        <UpcomingQuestions entries={this.props.upcomingQuestions} />
       </div>);
   }
 
 }
 
+
 App.propTypes = {
   history: PropTypes.arrayOf(PropTypes.object).isRequired,
-  current: PropTypes.object,
+  currentQuestion: PropTypes.object,
   processAnswer: PropTypes.func.isRequired,
-  upcoming: PropTypes.arrayOf(PropTypes.object).isRequired,
-  noInformationToGain: PropTypes.bool.isRequired,
+  upcomingQuestions: PropTypes.arrayOf(PropTypes.object).isRequired,
+  noInfoToGain: PropTypes.bool.isRequired,
   isThinking: PropTypes.bool.isRequired,
 };
 
@@ -152,47 +169,50 @@ class AppState extends React.Component {
     const initialQuestions = this.props.initialWebPPLResult;
     this.state = {
       history: [],
-      current: initialQuestions[0],
-      upcoming: initialQuestions.slice(1),
-      noInformationToGain: false,
+      currentQuestion: initialQuestions[0],
+      upcomingQuestions: initialQuestions.slice(1),
+      noInfoToGain: false,
       isThinking: false
     };
   }
 
   processAnswer(answerValue) {
-    const { history, current, upcoming } = this.state;
+    const { history, currentQuestion, upcomingQuestions } = this.state;
     const newState = {
-      history: history.concat([{
-        id: current.id,
-        questionText: current.questionText,
-        questionData: current.questionData,
-        eig: current.eig,
-        answerValue,
-      }]),
-      current: upcoming[0],
-      upcoming: upcoming.slice(1)
+      history: history.concat([
+        _.assign(
+          {},
+          {
+            questionText: currentQuestion.questionText,
+            questionData: currentQuestion.questionData,
+            type: currentQuestion.type,
+            expectedInfoGain: currentQuestion.expectedInfoGain
+          },
+          { answerValue })]),
+      currentQuestion: upcomingQuestions[0],
+      upcomingQuestions: upcomingQuestions.slice(1)
     };
     this.setState(newState);
-    if (newState.upcoming.length === 0) {
+    if (newState.upcomingQuestions.length === 0) {
       return;
     }
     this.setState({ isThinking: true });
     setTimeout(() => {
       const options = {
         history: newState.history,
-        current: newState.current,
+        currentQuestion: newState.currentQuestion,
         renderQuestion: renderQuestion
       };
       this.props.webpplFunc(options, (result) => {
         const bestQuestion = result[0];        
         this.setState({
-          current: bestQuestion,
-          upcoming: result.slice(1),
+          currentQuestion: bestQuestion,
+          upcomingQuestions: result.slice(1),
           isThinking: false
         });
-        if (bestQuestion.eig < 1e-15) {
+        if (bestQuestion.expectedInfoGain < 1e-15) {
           this.setState({
-            noInformationToGain: true
+            noInfoToGain: true
           });
         }
       });
@@ -201,11 +221,11 @@ class AppState extends React.Component {
 
   render() {
     return (
-      <App current={this.state.current}
+      <App currentQuestion={this.state.currentQuestion}
            history={this.state.history}
            processAnswer={this.processAnswer.bind(this)}
-           upcoming={this.state.upcoming}
-           noInformationToGain={this.state.noInformationToGain}
+           upcomingQuestions={this.state.upcomingQuestions}
+           noInfoToGain={this.state.noInfoToGain}
            isThinking={this.state.isThinking} />
     );
   }
@@ -236,28 +256,34 @@ class WebPPLLoader extends React.Component {
   }
 
   loadWebPPLModel(statusMessage, callback) {
-    statusMessage('Loading model code...');
+    statusMessage('Loading webppl framework...');
     $.ajax({
-      url: "/models/number-game.wppl",
-      success: function(modelCode){
-        statusMessage('Evaluating model to get webppl function...');
-        webppl.run(modelCode, (s, cpsWebPPLFunc) => {
-          statusMessage('Got compiled webppl function.');
-          const webpplFunc = (arg, callback) => {
-            var f = cpsWebPPLFunc({}, (s, result) => {
-              statusMessage('Got result from running webppl function: ' +
-                            JSON.stringify(result));
-              callback(result);
-            }, '', arg);
-            while (f) {
-              f = f();
-            }
-          };
-          callback(webpplFunc);
-        });
+      url: "/models/framework.wppl",
+      success: function(frameworkCode){
+        statusMessage('Loading model code...');
+        $.ajax({
+          url: models[modelID].url,
+          success: function(modelCode){
+            const code = frameworkCode + '\n\n' + modelCode + '\n\n model';
+            statusMessage('Evaluating model to get webppl function...');
+            webppl.run(code, (s, cpsWebPPLFunc) => {
+              statusMessage('Got compiled webppl function.');
+              const webpplFunc = (arg, callback) => {
+                var f = cpsWebPPLFunc({}, (s, result) => {
+                  statusMessage('Got result from running webppl function.');
+                  callback(result);
+                }, '', arg);
+                while (f) {
+                  f = f();
+                }
+              };
+              callback(webpplFunc);
+            });
+          }
+        });        
       }
     });
-  }  
+  }
 
   statusMessage(message) {
     console.log(message);
