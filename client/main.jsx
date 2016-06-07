@@ -161,7 +161,6 @@ class App extends React.Component {
 
 }
 
-
 App.propTypes = {
   history: PropTypes.arrayOf(PropTypes.object).isRequired,
   currentQuestion: PropTypes.object,
