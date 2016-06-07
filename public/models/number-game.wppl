@@ -36,7 +36,7 @@ var KL = function(P, Q) {
 
 // State and question specification
 
-var meaning = {
+var meanings = {
   "Is it even?": function(state){ return (state % 2) == 0 },
   "Is it odd?": function(state){ return (state % 2) == 1 },
   "Is it greater than #1?": function(state, data){ return state > data[0] },
@@ -52,11 +52,25 @@ var statePrior = function() {
   return randomInteger(100) + 1;
 };
 
+var generateQuestions = function(stateDist) {
+  return Infer(
+    {method: "enumerate"},
+    function() {
+      var q = uniformDraw(_.keys(meanings));
+      if (q.indexOf('#1') > -1) {
+        return {questionText: q, questionData: [statePrior()]};
+      } else {
+        return {questionText: q, questionData:[]};
+      }
+    }
+  ).support();
+};
+
 
 // Model
 
 var sampleAnswer = function(state, question){
-  return apply(meaning[question.questionText], [state, question.questionData]);
+  return apply(meanings[question.questionText], [state, question.questionData]);
 };
 
 var makeAnswerPrior = function(statePrior, question) {
@@ -114,29 +128,24 @@ var model = function(options) {
     {method: "enumerate"},
     function() {
       var state = statePrior();
-      map(function(question) {
-        var sampledAnswer = sampleAnswer(state, question)
-        condition(sampledAnswer == question.answerValue)
-      }, history);
+      map(
+        function(question) {
+          var sampledAnswer = sampleAnswer(state, question)
+          condition(sampledAnswer == question.answerValue)
+        },
+        history);
       return state;
     }
   );
 
-  var allQuestions = Infer(
-    {method: "enumerate"},
-    function(){
-      var q = uniformDraw(_.keys(meaning));
-      if (q.indexOf('#1') > -1) {
-        return {questionText: q, questionData: [statePrior()]};
-      } else {
-        return {questionText: q, questionData:[]};
-      }
-    }
-  ).support();
+  var allQuestions = generateQuestions(stateDist);
 
   var addExpectedInfoGain = function(questions) {
-    return map(function(question){ return _.extend(question, {eig: expectedInfoGain(stateDist, question)}); },
-               questions);
+    return map(
+      function(question){
+        return _.extend(question, {eig: expectedInfoGain(stateDist, question)});
+      },
+      questions);
   };
 
   var candidates = addExpectedInfoGain(allQuestions);
