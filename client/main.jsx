@@ -31,15 +31,12 @@ function renderAnswer(question) {
 }
 
 function renderQuestion(question) {
-  if (question.questionData) {
-    let q = question.questionText;
-    for (let i=0; i<(question.questionData.length); i++) {
-      q = q.replace('#' + (i + 1), question.questionData[i]);
-    }
-    return q;
-  } else {
-    return question;
+  const data = question.questionData || [];
+  let q = question.questionText;
+  for (let i = 0; i < data.length; i++) {
+    q = q.replace('#' + (i + 1), question.questionData[i]);
   }
+  return q;
 }
 
 function questionKey(question) {
