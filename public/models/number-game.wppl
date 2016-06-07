@@ -2,23 +2,41 @@ var statePrior = function() {
   return randomInteger(100) + 1;
 };
 
-var meanings = {
-  "Is it even?": function(state){ return (state % 2) == 0 },
-  "Is it odd?": function(state){ return (state % 2) == 1 },
-  "Is it greater than #1?": function(state, data){ return state > data[0] },
-  "Is it less than #1?": function(state, data){ return state < data[0] },
-  "Is it equal to #1?": function(state, data){ return state === data[0] },
-  "Is it a prime?": function(state){ return isPrime(state); },
-  "Is it a square?": function(state){ return Math.sqrt(state) % 1 === 0; },
-  "Is it divisible by 3?": function(state){ return state % 3 === 0; },
-  "Is it divisible by 5?": function(state){ return state % 5 === 0; }
+var questionTypes = {
+  "Is it even?": {
+    meaning: function(state){ return (state % 2) == 0 },
+  },
+  "Is it odd?": {
+    meaning: function(state){ return (state % 2) == 1 },
+  },
+  "Is it greater than #1?": {
+    meaning: function(state, data){ return state > data[0] },
+  },
+  "Is it less than #1?": {
+    meaning: function(state, data){ return state < data[0] },
+  },
+  "Is it equal to #1?": {
+    meaning: function(state, data){ return state === data[0] },
+  },
+  "Is it a prime?": {
+    meaning: function(state){ return isPrime(state); },
+  },
+  "Is it a square?": {
+    meaning: function(state){ return Math.sqrt(state) % 1 === 0; },
+  },
+  "Is it divisible by 3?": {
+    meaning: function(state){ return state % 3 === 0; },
+  },
+  "Is it divisible by 5?": {
+    meaning: function(state){ return state % 5 === 0; }
+  },
 };
 
 var generateQuestions = function(stateDist) {
   return Infer(
     {method: "enumerate"},
     function() {
-      var q = uniformDraw(_.keys(meanings));
+      var q = uniformDraw(_.keys(questionTypes));
       if (q.indexOf('#1') > -1) {
         return {questionText: q, questionData: [statePrior()], type: 'bool'};
       } else {

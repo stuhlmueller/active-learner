@@ -15,10 +15,10 @@ const models = {
   'movies': {
     url: "/models/movies.wppl",
     prompt: "Here are a few movies. I'll try to figure out your ranking."
-  },  
+  },
 };
 
-const modelID = 'movies';
+const modelID = 'number-game';
 
 
 
@@ -75,7 +75,11 @@ class UpcomingQuestions extends React.Component {
     return (
       <ul id="upcoming-questions">{
         this.props.entries.map((obj) => {
-          return <li key={questionKey(obj)}>{renderQuestion(obj)} ({obj.expectedInfoGain.toFixed(2)} bits)</li>;
+          return (
+            <li key={questionKey(obj)}>
+              {renderQuestion(obj)} {' '}
+              ({obj.expectedInfoGain.toFixed(2)} bits)
+            </li>);
         })}
       </ul>);
   }

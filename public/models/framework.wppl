@@ -43,7 +43,7 @@ var KL = function(P, Q) {
 // Model
 
 var sampleAnswer = function(state, question){
-  return apply(meanings[question.questionText], [state, question.questionData]);
+  return apply(questionTypes[question.questionText].meaning, [state, question.questionData]);
 };
 
 var makeAnswerPrior = function(statePrior, question) {
@@ -116,7 +116,9 @@ var model = function(options) {
   var addExpectedInfoGain = function(questions) {
     return map(
       function(question){
-        return _.extend(question, {expectedInfoGain: expectedInfoGain(stateDist, question)});
+        return _.extend(
+          question,
+          {expectedInfoGain: expectedInfoGain(stateDist, question)});
       },
       questions);
   };

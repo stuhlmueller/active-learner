@@ -19,12 +19,26 @@ var statePrior = function() {
   return shuffle(movies);
 };
 
-var meanings = {
-  "Is #1 a good movie?": function(state, data){
-    return _.indexOf(state, data[0]) <= state.length/2;
+var questionTypes = {
+  "Is #1 a good movie?": {
+    meaning: function(state, data){
+      return _.indexOf(state, data[0]) <= state.length/2;
+    },
   },
-  "Is #1 a better movie than #2?": function(state, data){
-    return _.indexOf(state, data[0]) < _.indexOf(state, data[1]);
+  "Is #1 the best movie?": {
+    meaning: function(state, data){
+      return data[0] === state;
+    },
+  },
+  "Is #1 the worst movie?": {
+    meaning: function(state, data){
+      return data[data.length-1] === state;
+    },
+  },
+  "Is #1 a better movie than #2?": {
+    meaning: function(state, data){
+      return _.indexOf(state, data[0]) < _.indexOf(state, data[1]);
+    },
   },
 };
 
@@ -32,7 +46,7 @@ var generateQuestions = function(stateDist) {
   return Infer(
     {method: "enumerate"},
     function() {
-      var q = uniformDraw(_.keys(meanings));
+      var q = uniformDraw(_.keys(questionTypes));
       if (q.indexOf('#2') > -1) {
         var i = randomInteger(movies.length);
         var j = randomInteger(movies.length);
