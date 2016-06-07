@@ -18,7 +18,7 @@ const models = {
   },
 };
 
-const modelID = 'number-game';
+const modelID = 'movies';
 
 
 
