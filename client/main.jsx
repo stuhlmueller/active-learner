@@ -11,10 +11,14 @@ const models = {
   'number-game': {
     url: "/models/number-game.wppl",
     prompt: "Think of a number between 1 and 100. I'll try to guess it."
-  }
+  },
+  'movies': {
+    url: "/models/movies.wppl",
+    prompt: "Here are a few movies. I'll try to figure out your ranking."
+  },  
 };
 
-const modelID = 'number-game';
+const modelID = 'movies';
 
 
 
@@ -28,7 +32,11 @@ function renderAnswer(question) {
 
 function renderQuestion(question) {
   if (question.questionData) {
-    return question.questionText.replace('#1', question.questionData[0]);
+    let q = question.questionText;
+    for (let i=0; i<(question.questionData.length); i++) {
+      q = q.replace('#' + (i + 1), question.questionData[i]);
+    }
+    return q;
   } else {
     return question;
   }
@@ -127,7 +135,8 @@ class App extends React.Component {
     if (!infoToGain) {
       return (
         <div id="done">
-          I have learned all I could learn from you.
+          <p>I have learned all I could learn from you.</p>
+          <p>The answer is {JSON.stringify(this.props.MAPState)}.</p>
         </div>);
     }
     if (isThinking) {
@@ -159,6 +168,7 @@ App.propTypes = {
   upcomingQuestions: PropTypes.arrayOf(PropTypes.object).isRequired,
   noInfoToGain: PropTypes.bool.isRequired,
   isThinking: PropTypes.bool.isRequired,
+  MAPState: PropTypes.any,
 };
 
 
@@ -166,13 +176,14 @@ class AppState extends React.Component {
 
   constructor(props) {
     super(props);
-    const initialQuestions = this.props.initialWebPPLResult;
+    const { questions } = this.props.initialWebPPLResult;
     this.state = {
       history: [],
-      currentQuestion: initialQuestions[0],
-      upcomingQuestions: initialQuestions.slice(1),
+      currentQuestion: questions[0],
+      upcomingQuestions: questions.slice(1),
       noInfoToGain: false,
-      isThinking: false
+      isThinking: false,
+      MAPState: null
     };
   }
 
@@ -204,11 +215,13 @@ class AppState extends React.Component {
         renderQuestion: renderQuestion
       };
       this.props.webpplFunc(options, (result) => {
-        const bestQuestion = result[0];        
+        const { questions, MAPState } = result;
+        const bestQuestion = questions[0];        
         this.setState({
           currentQuestion: bestQuestion,
-          upcomingQuestions: result.slice(1),
-          isThinking: false
+          upcomingQuestions: questions.slice(1),
+          isThinking: false,
+          MAPState,
         });
         if (bestQuestion.expectedInfoGain < 1e-15) {
           this.setState({
@@ -226,7 +239,8 @@ class AppState extends React.Component {
            processAnswer={this.processAnswer.bind(this)}
            upcomingQuestions={this.state.upcomingQuestions}
            noInfoToGain={this.state.noInfoToGain}
-           isThinking={this.state.isThinking} />
+           isThinking={this.state.isThinking}
+           MAPState={this.state.MAPState} />
     );
   }
 }

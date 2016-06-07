@@ -129,13 +129,21 @@ var model = function(options) {
     function(o) { return o.expectedInfoGain; });
 
   if (!options.history) {
-    return sortedCandidates;
+    return {
+      questions: sortedCandidates,
+      MAPState: stateDist.MAP()
+    };
   }
 
-  return filter(
-    function(question){
-      return !questionExists(question, options);
-    },
-    sortedCandidates
-  );
+  var response = {
+    questions: filter(
+      function(question){
+        return !questionExists(question, options);
+      },
+      sortedCandidates
+    ),
+    MAPState: stateDist.MAP().val
+  };
+
+  return response;
 };

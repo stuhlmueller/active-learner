@@ -1,0 +1,48 @@
+var movies = [
+  "Rocky Horror Picture Show",
+  "Black Swan",
+  "101 Dalmatians",
+  "Sound of Music",
+  "Serenity",
+];
+
+var shuffle = function(xs) {
+  if (xs.length === 0) {
+    return [];
+  } else {
+    var x = uniformDraw(xs);
+    return append([x], shuffle(_.without(xs, x)));
+  }
+};
+
+var statePrior = function() {
+  return shuffle(movies);
+};
+
+var meanings = {
+  "Is #1 a good movie?": function(state, data){
+    return _.indexOf(state, data[0]) <= state.length/2;
+  },
+  "Is #1 a better movie than #2?": function(state, data){
+    return _.indexOf(state, data[0]) < _.indexOf(state, data[1]);
+  },
+};
+
+var generateQuestions = function(stateDist) {
+  return Infer(
+    {method: "enumerate"},
+    function() {
+      var q = uniformDraw(_.keys(meanings));
+      if (q.indexOf('#2') > -1) {
+        var i = randomInteger(movies.length);
+        var j = randomInteger(movies.length);
+        return {questionText: q, questionData: [movies[i], movies[j]], type: 'bool'};
+      } else if (q.indexOf('#1') > -1) {
+        var i = randomInteger(movies.length);
+        return {questionText: q, questionData: [movies[i]], type: 'bool'};
+      } else {
+        return {questionText: q, questionData:[], type: 'bool'};
+      }
+    }
+  ).support();  
+};
