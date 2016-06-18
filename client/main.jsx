@@ -6,27 +6,25 @@ import { render } from 'react-dom';
 import './main.html';
 
 
-
 const models = {
   'number-game': {
-    url: "/models/number-game.wppl",
-    prompt: "Think of a number between 1 and 100. I'll try to guess it."
+    url: '/models/number-game.wppl',
+    prompt: 'Think of a number between 1 and 100. I\'ll try to guess it.'
   },
   'movies': {
-    url: "/models/movies.wppl",
-    prompt: "Here are a few movies. I'll try to figure out your ranking."
+    url: '/models/movies.wppl',
+    prompt: 'Here are a few movies. I\'ll try to figure out your ranking.'
   },
 };
 
-const modelID = 'movies';
-
+const modelID = 'number-game';
 
 
 function renderAnswer(question) {
   if (question.type === 'bool') {
     return question.answerValue ? 'Yes.' : 'No.';
   } else {
-    throw new Error("Can't handle question type: " + question.type);
+    throw new Error(`Can\'t handle question type: ${question.type}`);
   }
 }
 
@@ -34,7 +32,7 @@ function renderQuestion(question) {
   const data = question.questionData || [];
   let q = question.questionText;
   for (let i = 0; i < data.length; i++) {
-    q = q.replace('#' + (i + 1), question.questionData[i]);
+    q = q.replace(`#${(i + 1)}`, question.questionData[i]);
   }
   return q;
 }
@@ -44,21 +42,17 @@ function questionKey(question) {
 }
 
 
-class History extends React.Component {
-
-  render() {
-    return (
-      <ul id="history">{
-        this.props.entries.map((obj) => {
-          return (
-            <li key={questionKey(obj)}>
-              <span className="questionText">{renderQuestion(obj)}</span> {' '}
-              <span className="answerText">{renderAnswer(obj)}</span>
-            </li>);
-        })}
-      </ul>);
-  }
-
+function History(props) {
+  return (
+    <ul id="history">{
+      props.entries.map((obj) => {
+        return (
+          <li key={questionKey(obj)}>
+            <span className="questionText">{renderQuestion(obj)}</span> {' '}
+            <span className="answerText">{renderAnswer(obj)}</span>
+          </li>);
+      })}
+    </ul>);
 }
 
 History.propTypes = {
@@ -66,21 +60,17 @@ History.propTypes = {
 };
 
 
-class UpcomingQuestions extends React.Component {
-
-  render() {
-    return (
-      <ul id="upcoming-questions">{
-        this.props.entries.map((obj) => {
-          return (
-            <li key={questionKey(obj)}>
-              {renderQuestion(obj)} {' '}
-              ({obj.expectedInfoGain.toFixed(2)} bits)
-            </li>);
-        })}
-      </ul>);
-  }
-
+function UpcomingQuestions(props) {
+  return (
+    <ul id="upcoming-questions">{
+      props.entries.map((obj) => {
+        return (
+          <li key={questionKey(obj)}>
+            {renderQuestion(obj)} {' '}
+            ({obj.expectedInfoGain.toFixed(2)} bits)
+          </li>);
+      })}
+    </ul>);
 }
 
 UpcomingQuestions.propTypes = {
@@ -115,12 +105,8 @@ Question.propTypes = {
 };
 
 
-class OutOfQuestions extends React.Component {
-
-  render() {
+function OutOfQuestions() {
     return <p>I'm out of questions.</p>;
-  }
-
 }
 
 
@@ -212,11 +198,11 @@ class AppState extends React.Component {
       const options = {
         history: newState.history,
         currentQuestion: newState.currentQuestion,
-        renderQuestion: renderQuestion
+        renderQuestion
       };
       this.props.webpplFunc(options, (result) => {
         const { questions, MAPState } = result;
-        const bestQuestion = questions[0];        
+        const bestQuestion = questions[0];
         this.setState({
           currentQuestion: bestQuestion,
           upcomingQuestions: questions.slice(1),
@@ -272,7 +258,7 @@ class WebPPLLoader extends React.Component {
   loadWebPPLModel(statusMessage, callback) {
     statusMessage('Loading webppl framework...');
     $.ajax({
-      url: "/models/framework.wppl",
+      url: '/models/framework.wppl',
       success: function(frameworkCode){
         statusMessage('Loading model code...');
         $.ajax({
@@ -294,7 +280,7 @@ class WebPPLLoader extends React.Component {
               callback(webpplFunc);
             });
           }
-        });        
+        });
       }
     });
   }
@@ -315,7 +301,7 @@ class WebPPLLoader extends React.Component {
         </div>);
     } else {
       return (
-        <div id="loader">
+        <div id='loader'>
           {this.state.statusMessage}
         </div>);
     }
