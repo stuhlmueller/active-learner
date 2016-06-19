@@ -1,5 +1,5 @@
 div#question, div#done, div#thinking {
-    margin: 2em auto 2em auto;
+    margin: 2em auto 2em 2em;
     padding: 1em;
     width: 300px;
     border: 2px solid #bbb;
@@ -7,7 +7,7 @@ div#question, div#done, div#thinking {
     box-shadow: 2px 2px 15px #ccc;    
 }
 
-ul#history li, ul#upcoming-questions li {
+ul#history li, ul#future li {
     margin-top: .3em;
 }
 
@@ -17,7 +17,7 @@ ul#history {
     }
 }
 
-ul#upcoming-questions {
+ul#future {
     color: #ccc;
 }
 
@@ -30,6 +30,10 @@ div#answerInputs {
 }
 
 #app p {
+    margin: 2em;
+}
+
+#loader {
     margin: 2em;
 }
 

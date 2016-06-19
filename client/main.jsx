@@ -1,5 +1,6 @@
 import _ from 'lodash';
 import React from 'react';
+import Dropdown from './dropdown.jsx';
 import { Meteor } from 'meteor/meteor';
 import { PropTypes } from 'react';
 import { render } from 'react-dom';
@@ -8,16 +9,16 @@ import './main.html';
 
 const models = {
   'number-game': {
+    name: 'Number game',
     url: '/models/number-game.wppl',
     prompt: 'Think of a number between 1 and 100. I\'ll try to guess it.'
   },
   'movies': {
+    name: 'Movie ranking',
     url: '/models/movies.wppl',
     prompt: 'Here are a few movies. I\'ll try to figure out your ranking.'
   },
 };
-
-const modelID = 'number-game';
 
 
 function renderAnswer(question) {
@@ -60,9 +61,9 @@ History.propTypes = {
 };
 
 
-function UpcomingQuestions(props) {
+function Future(props) {
   return (
-    <ul id="upcoming-questions">{
+    <ul id="future">{
       props.entries.map((obj) => {
         return (
           <li key={questionKey(obj)}>
@@ -73,7 +74,7 @@ function UpcomingQuestions(props) {
     </ul>);
 }
 
-UpcomingQuestions.propTypes = {
+Future.propTypes = {
   entries: PropTypes.arrayOf(PropTypes.object).isRequired,
 };
 
@@ -138,10 +139,10 @@ class App extends React.Component {
   render() {
     return (
       <div>
-        <p id="prompt">{models[modelID].prompt}</p>
+        <p id="prompt">{models[this.props.modelID].prompt}</p>
         <History entries={this.props.history} />
         {this.renderBox()}
-        <UpcomingQuestions entries={this.props.upcomingQuestions} />
+        <Future entries={this.props.upcomingQuestions} />
       </div>);
   }
 
@@ -155,6 +156,7 @@ App.propTypes = {
   noInfoToGain: PropTypes.bool.isRequired,
   isThinking: PropTypes.bool.isRequired,
   MAPState: PropTypes.any,
+  modelID: PropTypes.string.isRequired
 };
 
 
@@ -226,10 +228,17 @@ class AppState extends React.Component {
            upcomingQuestions={this.state.upcomingQuestions}
            noInfoToGain={this.state.noInfoToGain}
            isThinking={this.state.isThinking}
-           MAPState={this.state.MAPState} />
+           MAPState={this.state.MAPState}
+           modelID={this.props.modelID} />
     );
   }
 }
+
+AppState.propTypes = {
+  initialWebPPLResult: PropTypes.any,
+  modelID: PropTypes.string.isRequired,
+  webpplFunc: PropTypes.func.isRequired
+};
 
 
 class WebPPLLoader extends React.Component {
@@ -259,11 +268,11 @@ class WebPPLLoader extends React.Component {
     statusMessage('Loading webppl framework...');
     $.ajax({
       url: '/models/framework.wppl',
-      success: function(frameworkCode){
+      success: (frameworkCode) => {
         statusMessage('Loading model code...');
         $.ajax({
-          url: models[modelID].url,
-          success: function(modelCode){
+          url: models[this.props.modelID].url,
+          success: (modelCode) => {
             const code = frameworkCode + '\n\n' + modelCode + '\n\n model';
             statusMessage('Evaluating model to get webppl function...');
             webppl.run(code, (s, cpsWebPPLFunc) => {
@@ -295,10 +304,9 @@ class WebPPLLoader extends React.Component {
   render() {
     if (this.state.loaded) {
       return (
-        <div>
-          <AppState webpplFunc={this.state.webpplFunc}
-                    initialWebPPLResult={this.state.initialWebPPLResult} />
-        </div>);
+        <AppState webpplFunc={this.state.webpplFunc}
+                  modelID={this.props.modelID}
+                  initialWebPPLResult={this.state.initialWebPPLResult} />);
     } else {
       return (
         <div id='loader'>
@@ -309,7 +317,42 @@ class WebPPLLoader extends React.Component {
 
 }
 
+WebPPLLoader.propTypes = {
+  modelID: PropTypes.string.isRequired
+};
+
+
+class ModelSelector extends React.Component {
+
+  constructor(props) {
+    super(props);
+    this.state = {
+      modelID: _.keys(models)[0]
+    };
+  }
+
+  render() {
+    const options = _.keys(models).map((id) => {
+      return {
+        value: id,
+        label: models[id].name
+      };
+    });
+    return (      
+      <div id='model-selector'>
+        <div>
+          <Dropdown id="model-selector-dropdown"
+                    options={options}
+                    value={this.state.modelID}
+                    onChange={(change) => {this.setState({ modelID: change.newValue });}} />
+        </div>
+        <WebPPLLoader modelID={this.state.modelID} key={this.state.modelID} />
+      </div>);
+  }
+
+}
+
 
 Meteor.startup(() => {
-  render(<WebPPLLoader />, document.getElementById('app'));
+  render(<ModelSelector />, document.getElementById('app'));
 });
