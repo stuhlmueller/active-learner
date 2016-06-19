@@ -1,3 +1,23 @@
+var isDivisibleByAny = function(i, q, n) {
+  if (i > q) {
+    return false;
+  } else {
+    if (n % i === 0) {
+      return true;
+    } else {
+      return isDivisibleByAny(i + 1, q, n);
+    }
+  }
+};
+
+var isPrime = function(n) {
+  if (n < 2) {
+    return false;
+  }
+  var q = Math.floor(Math.sqrt(n));
+  return !isDivisibleByAny(2, q, n);
+};
+
 var statePrior = function() {
   return randomInteger(100) + 1;
 };
