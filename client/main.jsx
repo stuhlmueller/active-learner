@@ -21,14 +21,6 @@ const models = {
 };
 
 
-function renderAnswer(question) {
-  if (question.type === 'bool') {
-    return question.answerValue ? 'Yes.' : 'No.';
-  } else {
-    throw new Error(`Can\'t handle question type: ${question.type}`);
-  }
-}
-
 function renderQuestion(question) {
   const data = question.questionData || [];
   let q = question.questionText;
@@ -50,7 +42,7 @@ function History(props) {
         return (
           <li key={questionKey(obj)}>
             <span className="questionText">{renderQuestion(obj)}</span> {' '}
-            <span className="answerText">{renderAnswer(obj)}</span>
+            <span className="answerText">{obj.actualAnswer}</span>
           </li>);
       })}
     </ul>);
@@ -79,25 +71,44 @@ Future.propTypes = {
 };
 
 
-class Question extends React.Component {
+class DiscreteQuestion extends React.Component {
 
   handleAnswer(e, value) {
     this.props.processAnswer(value);
   }
 
   render() {
+    console.log(this.props.question.answerType.discrete.values);
     return (
       <div id="question">
         <div key={questionKey(this.props.question)} id="questionText">
           {renderQuestion(this.props.question)}
         </div>
         <div id="answerInputs">
-          <input type="button" value="yes" onClick={(e)=>{this.handleAnswer(e, true)}} />
-          <input type="button" value="no" onClick={(e)=>{this.handleAnswer(e, false)}} />
+          {this.props.question.answerType.discrete.values.map((value) => {
+             return (
+               <input type="button"
+                      value={value}
+                      key={value}
+                      onClick={(e)=>{this.handleAnswer(e, value)}} />);
+           })}
         </div>
       </div>);
   }
+}
 
+DiscreteQuestion.propTypes = {
+  processAnswer: PropTypes.func.isRequired,
+  question: PropTypes.object.isRequired,
+};
+
+
+function Question(props) {
+  if (props.question.answerType && props.question.answerType.discrete) {
+    return <DiscreteQuestion {...props} />;
+  } else {
+    throw new Error(`Unknown answer type: ${props.question.answerType}`);
+  }
 }
 
 Question.propTypes = {
@@ -142,7 +153,13 @@ class App extends React.Component {
         <p id="prompt">{models[this.props.modelID].prompt}</p>
         <History entries={this.props.history} />
         {this.renderBox()}
-        <Future entries={this.props.upcomingQuestions} />
+        <Future entries={this.props.future} />
+        <div id="entropy">
+          <span>Remaining entropy:</span>
+          {(this.props.entropy !== null) ?
+           ` ${this.props.entropy.toFixed(2)} bits` :
+           " unknown"}
+        </div>
         <div id="best-guess">
           <span>Best guess:</span> {' '}
           {this.props.MAPState ? JSON.stringify(this.props.MAPState) : "none yet"}
@@ -156,11 +173,12 @@ App.propTypes = {
   history: PropTypes.arrayOf(PropTypes.object).isRequired,
   currentQuestion: PropTypes.object,
   processAnswer: PropTypes.func.isRequired,
-  upcomingQuestions: PropTypes.arrayOf(PropTypes.object).isRequired,
+  future: PropTypes.arrayOf(PropTypes.object).isRequired,
   noInfoToGain: PropTypes.bool.isRequired,
   isThinking: PropTypes.bool.isRequired,
   MAPState: PropTypes.any,
-  modelID: PropTypes.string.isRequired
+  modelID: PropTypes.string.isRequired,
+  entropy: PropTypes.number
 };
 
 
@@ -172,31 +190,23 @@ class AppState extends React.Component {
     this.state = {
       history: [],
       currentQuestion: questions[0],
-      upcomingQuestions: questions.slice(1),
+      future: questions.slice(1),
       noInfoToGain: false,
       isThinking: false,
-      MAPState: null
+      MAPState: null,
+      entropy: null
     };
   }
 
-  processAnswer(answerValue) {
-    const { history, currentQuestion, upcomingQuestions } = this.state;
+  processAnswer(actualAnswer) {
+    const { history, currentQuestion, future } = this.state;
     const newState = {
-      history: history.concat([
-        _.assign(
-          {},
-          {
-            questionText: currentQuestion.questionText,
-            questionData: currentQuestion.questionData,
-            type: currentQuestion.type,
-            expectedInfoGain: currentQuestion.expectedInfoGain
-          },
-          { answerValue })]),
-      currentQuestion: upcomingQuestions[0],
-      upcomingQuestions: upcomingQuestions.slice(1)
+      history: history.concat([_.assign({}, currentQuestion, { actualAnswer })]),
+      currentQuestion: future[0],
+      future: future.slice(1)
     };
     this.setState(newState);
-    if (newState.upcomingQuestions.length === 0) {
+    if (newState.future.length === 0) {
       return;
     }
     this.setState({ isThinking: true });
@@ -207,13 +217,14 @@ class AppState extends React.Component {
         renderQuestion
       };
       this.props.webpplFunc(options, (result) => {
-        const { questions, MAPState } = result;
+        const { questions, MAPState, entropy } = result;
         const bestQuestion = questions[0];
         this.setState({
           currentQuestion: bestQuestion,
-          upcomingQuestions: questions.slice(1),
+          future: questions.slice(1),
           isThinking: false,
           MAPState,
+          entropy
         });
         if (bestQuestion.expectedInfoGain < 1e-15) {
           this.setState({
@@ -229,10 +240,11 @@ class AppState extends React.Component {
       <App currentQuestion={this.state.currentQuestion}
            history={this.state.history}
            processAnswer={this.processAnswer.bind(this)}
-           upcomingQuestions={this.state.upcomingQuestions}
+           future={this.state.future}
            noInfoToGain={this.state.noInfoToGain}
            isThinking={this.state.isThinking}
            MAPState={this.state.MAPState}
+           entropy={this.state.entropy}
            modelID={this.props.modelID} />
     );
   }
@@ -276,8 +288,8 @@ class WebPPLLoader extends React.Component {
         statusMessage('Loading model code...');
         $.ajax({
           url: models[this.props.modelID].url,
-          success: (modelCode) => {
-            const code = frameworkCode + '\n\n' + modelCode + '\n\n model';
+          success: (domainCode) => {
+            const code = `${frameworkCode} \n\n ${domainCode} \n\n makeModel(domain)`;
             statusMessage('Evaluating model to get webppl function...');
             webppl.run(code, (s, cpsWebPPLFunc) => {
               statusMessage('Got compiled webppl function.');

@@ -4,6 +4,7 @@ var toLog2 = function(x) {
   return x / Math.log(2);
 }
 
+
 var KL = function(P, Q) {
   var statesP = P.support();
   var statesQ = Q.support();
@@ -19,29 +20,73 @@ var KL = function(P, Q) {
 };
 
 
-// Model
+// Question spec help (for domains)
 
-var sampleAnswer = function(state, question){
-  return apply(questionTypes[question.questionText].meaning, [state, question.questionData]);
+var yesNoQuestion = function(question) {
+  return {
+    sampleQuestionData: question.sampleQuestionData || function(){ return []; },
+    sampleAnswer: function(state, data) {
+      var _sampleAnswer = question.sampleAnswer;
+      return _sampleAnswer(state, data) ? "yes" : "no";
+    },
+    answerType: {
+      discrete: {
+        values: ["yes", "no"]
+      }
+    }
+  };
 };
 
+var yesNoMaybeQuestion = function(question) {
+  return {
+    sampleQuestionData: question.sampleQuestionData || function(){ return []; },
+    sampleAnswer: function(state, data) {
+      var _sampleAnswer = question.sampleAnswer;
+      if (flip(.2)) {
+        return "maybe";
+      } else {
+        var answerIsTrue = _sampleAnswer(state, data);
+        var noiseFlip = flip(.1);
+        if (noiseFlip) {
+          return answerIsTrue ? "no" : "yes";
+        } else {
+          return answerIsTrue ? "yes" : "no";
+        }
+      }
+    },
+    answerType: {
+      discrete: {
+        values: ["yes", "no", "maybe"]
+      }
+    }
+  };
+};
+
+
+
+// Model
+
+var update = function(statePrior, question, actualAnswer){
+  var sampleAnswer = question.sampleAnswer;
+  return Infer({method: "enumerate"}, function(){
+    var state = sample(statePrior);
+    var sampledAnswer = sampleAnswer(state, question.questionData);
+    condition(actualAnswer === sampledAnswer);
+    return state;
+  });
+};
+
+
 var makeAnswerPrior = function(statePrior, question) {
+  var sampleAnswer = question.sampleAnswer;
   return Infer(
     {method: 'enumerate'},
     function() {
       var state = sample(statePrior);
-      return sampleAnswer(state, question);
+      return sampleAnswer(state, question.questionData);
     });
 };
 
-var update = function(statePrior, question, answer){
-  Infer({method: "enumerate"}, function(){
-    var state = sample(statePrior);
-    var sampledAnswer = sampleAnswer(state, question);
-    condition(answer == sampledAnswer);
-    return state;
-  });
-};
 
 var expectedInfoGain = function(statePrior, question) {
   var answerPrior = makeAnswerPrior(statePrior, question);
@@ -65,7 +110,25 @@ var questionExists = function(question, options) {
 };
 
 
-var model = function(options) {
+var generateQuestions = function(questionTypes, stateDist) {
+  return Infer(
+    {method: "enumerate"},
+    function() {
+      var questionText = uniformDraw(_.keys(questionTypes));
+      var type = questionTypes[questionText];
+      var sampleQuestionData = type.sampleQuestionData;
+      return {
+        questionText: questionText,
+        questionData: sampleQuestionData(),
+        sampleAnswer: type.sampleAnswer,
+        answerType: type.answerType
+      };
+    }
+  ).support();  
+};
+
+
+var model = function(questionTypes, statePrior, options) {
   
   // Options:
   // - renderQuestion
@@ -82,15 +145,16 @@ var model = function(options) {
       var state = statePrior();
       map(
         function(question) {
-          var sampledAnswer = sampleAnswer(state, question)
-          condition(sampledAnswer == question.answerValue)
+          var sampleAnswer = question.sampleAnswer;
+          var sampledAnswer = sampleAnswer(state, question.questionData);
+          condition(sampledAnswer === question.actualAnswer)
         },
         history);
       return state;
     }
   );
 
-  var allQuestions = generateQuestions(stateDist);
+  var allQuestions = generateQuestions(questionTypes, stateDist);
 
   var addExpectedInfoGain = function(questions) {
     return map(
@@ -123,8 +187,16 @@ var model = function(options) {
       },
       sortedCandidates
     ),
-    MAPState: stateDist.MAP().val
+    MAPState: stateDist.MAP().val,
+    entropy: toLog2(stateDist.entropy())
   };
 
   return response;
+};
+
+
+var makeModel = function(domain) {
+  return function(options) {
+    return model(domain.questionTypes, domain.statePrior, options);
+  }
 };

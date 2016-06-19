@@ -42,8 +42,15 @@ div#answerInputs {
 }
 
 div#best-guess {
-    position: absolute;
+    top: 100px;
+}
+
+div#entropy {
     top: 50px;
+}
+
+div#best-guess, div#entropy {
+    position: absolute;
     right: 50px;
     width: 200px;
     padding: .5em;

@@ -1,3 +1,5 @@
+// Generative model for states
+
 var movies = [
   "Rocky Horror Picture Show",
   "Black Swan",
@@ -19,44 +21,60 @@ var statePrior = function() {
   return shuffle(movies);
 };
 
-var questionTypes = {
-  "Is #1 a good movie?": {
-    meaning: function(state, data){
-      return _.indexOf(state, data[0]) <= state.length/2;
-    },
-  },
-  "Is #1 the best movie?": {
-    meaning: function(state, data){
-      return data[0] === state[0];
-    },
-  },
-  "Is #1 the worst movie?": {
-    meaning: function(state, data){
-      return data[0] === state[state.length-1];
-    },
-  },
-  "Is #1 a better movie than #2?": {
-    meaning: function(state, data){
-      return _.indexOf(state, data[0]) < _.indexOf(state, data[1]);
-    },
-  },
+
+// Questions
+
+var inFirstHalf = function(xs, x) {
+  return _.indexOf(xs, x) <= xs.length/2;
 };
 
-var generateQuestions = function(stateDist) {
-  return Infer(
-    {method: "enumerate"},
-    function() {
-      var q = uniformDraw(_.keys(questionTypes));
-      if (q.indexOf('#2') > -1) {
-        var i = randomInteger(movies.length);
-        var j = randomInteger(movies.length);
-        return {questionText: q, questionData: [movies[i], movies[j]], type: 'bool'};
-      } else if (q.indexOf('#1') > -1) {
-        var i = randomInteger(movies.length);
-        return {questionText: q, questionData: [movies[i]], type: 'bool'};
-      } else {
-        return {questionText: q, questionData:[], type: 'bool'};
-      }
+
+var sampleMovie =  function(){
+  return uniformDraw(movies);
+};
+
+
+var questionTypes = {
+  
+  // "Is #1 a good movie?": yesNoMaybeQuestion({
+  //   sampleQuestionData: function() {
+  //     return [sampleMovie()];
+  //   },
+  //   sampleAnswer: function(state, data) {
+  //     return inFirstHalf(state, data[0]);
+  //   }
+  // }),
+  
+  // "Is #1 the best movie?": yesNoMaybeQuestion({
+  //   sampleQuestionData: function() {
+  //     return [sampleMovie()];
+  //   },    
+  //   sampleAnswer: function(state, data){
+  //     return data[0] === state[0];
+  //   }
+  // }),
+  
+  // "Is #1 the worst movie?": yesNoMaybeQuestion({
+  //   sampleQuestionData: function() {
+  //     return [sampleMovie()];
+  //   },
+  //   sampleAnswer: function(state, data){
+  //     return data[0] === state[state.length-1];
+  //   }
+  // }),
+  
+  "Is #1 a better movie than #2?": yesNoMaybeQuestion({
+    sampleQuestionData: function() {
+      return [sampleMovie(), sampleMovie()];
+    },    
+    sampleAnswer: function(state, data){
+      return _.indexOf(state, data[0]) < _.indexOf(state, data[1]);
     }
-  ).support();  
+  })
+};
+
+
+var domain = {
+  questionTypes: questionTypes,
+  statePrior: statePrior
 };

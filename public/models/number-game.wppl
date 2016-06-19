@@ -1,3 +1,12 @@
+// Generative model
+
+var statePrior = function() {
+  return randomInteger(100) + 1;
+};
+
+
+// Questions
+
 var isDivisibleByAny = function(i, q, n) {
   if (i > q) {
     return false;
@@ -10,6 +19,7 @@ var isDivisibleByAny = function(i, q, n) {
   }
 };
 
+
 var isPrime = function(n) {
   if (n < 2) {
     return false;
@@ -18,51 +28,51 @@ var isPrime = function(n) {
   return !isDivisibleByAny(2, q, n);
 };
 
-var statePrior = function() {
-  return randomInteger(100) + 1;
-};
 
 var questionTypes = {
-  "Is it even?": {
-    meaning: function(state){ return (state % 2) == 0 },
-  },
-  "Is it odd?": {
-    meaning: function(state){ return (state % 2) == 1 },
-  },
-  "Is it greater than #1?": {
-    meaning: function(state, data){ return state > data[0] },
-  },
-  "Is it less than #1?": {
-    meaning: function(state, data){ return state < data[0] },
-  },
-  "Is it equal to #1?": {
-    meaning: function(state, data){ return state === data[0] },
-  },
-  "Is it a prime?": {
-    meaning: function(state){ return isPrime(state); },
-  },
-  "Is it a square?": {
-    meaning: function(state){ return Math.sqrt(state) % 1 === 0; },
-  },
-  "Is it divisible by 3?": {
-    meaning: function(state){ return state % 3 === 0; },
-  },
-  "Is it divisible by 5?": {
-    meaning: function(state){ return state % 5 === 0; }
-  },
+  
+  "Is it even?": yesNoQuestion({
+    sampleAnswer: function(state){ return (state % 2) == 0 },
+  }),
+  
+  "Is it odd?": yesNoQuestion({
+    sampleAnswer: function(state){ return (state % 2) == 1 },
+  }),
+  
+  "Is it greater than #1?": yesNoQuestion({
+    sampleQuestionData: function() { return [statePrior()]; },
+    sampleAnswer: function(state, data){ return state > data[0] },
+  }),
+  
+  "Is it less than #1?": yesNoQuestion({
+    sampleQuestionData: function() { return [statePrior()]; },
+    sampleAnswer: function(state, data){ return state < data[0] },
+  }),
+  
+  "Is it equal to #1?": yesNoQuestion({
+    sampleQuestionData: function() { return [statePrior()]; },
+    sampleAnswer: function(state, data){ return state === data[0] },
+  }),
+  
+  "Is it a prime?": yesNoQuestion({
+    sampleAnswer: function(state){ return isPrime(state); },
+  }),
+  
+  "Is it a square?": yesNoQuestion({
+    sampleAnswer: function(state){ return Math.sqrt(state) % 1 === 0; },
+  }),
+  
+  "Is it divisible by 3?": yesNoQuestion({
+    sampleAnswer: function(state){ return state % 3 === 0; },
+  }),
+  
+  "Is it divisible by 5?": yesNoQuestion({
+    sampleAnswer: function(state){ return state % 5 === 0; }
+  }),
 };
 
-var generateQuestions = function(stateDist) {
-  return Infer(
-    {method: "enumerate"},
-    function() {
-      var q = uniformDraw(_.keys(questionTypes));
-      if (q.indexOf('#1') > -1) {
-        return {questionText: q, questionData: [statePrior()], type: 'bool'};
-      } else {
-        return {questionText: q, questionData:[], type: 'bool'};
-      }
-    }
-  ).support();
-};
 
+var domain = {
+  questionTypes: questionTypes,
+  statePrior: statePrior
+};
