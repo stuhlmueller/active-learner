@@ -143,6 +143,10 @@ class App extends React.Component {
         <History entries={this.props.history} />
         {this.renderBox()}
         <Future entries={this.props.upcomingQuestions} />
+        <div id="best-guess">
+          <span>Best guess:</span> {' '}
+          {this.props.MAPState ? JSON.stringify(this.props.MAPState) : "none yet"}
+        </div>
       </div>);
   }
 

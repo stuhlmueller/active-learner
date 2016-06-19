@@ -40,3 +40,15 @@ div#answerInputs {
 #done p {
     margin: .5em 0 .5em 0;
 }
+
+div#best-guess {
+    position: absolute;
+    top: 50px;
+    right: 50px;
+    width: 200px;
+    padding: .5em;
+    border: 1px solid #ccc;
+    box-shadow: 1px 1px 5px #ccc;
+    color: #777;
+    font-size: 12px;
+}
