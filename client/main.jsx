@@ -11,12 +11,18 @@ const models = {
   'number-game': {
     name: 'Number game',
     url: '/models/number-game.wppl',
-    prompt: 'Think of a number between 1 and 100. I\'ll try to guess it.'
+    prompt: 'Think of a number between 1 and 100. I\'ll try to guess it.',
+    renderState: (state) => {
+      return state;
+    }
   },
   'movies': {
     name: 'Movie ranking',
     url: '/models/movies.wppl',
-    prompt: 'Here are a few movies. I\'ll try to figure out your ranking.'
+    prompt: 'Here are a few movies. I\'ll try to figure out your ranking.',
+    renderState: (state) => {
+      return <ol>{state.map((el) => { return <li>{el}</li>; })}</ol>;
+    }
   },
 };
 
@@ -128,6 +134,7 @@ class App extends React.Component {
     const currentQuestion = this.props.currentQuestion;
     const infoToGain = !this.props.noInfoToGain;
     const isThinking = this.props.isThinking;
+    const renderState = models[this.props.modelID].renderState;
     if (!currentQuestion) {
       return <OutOfQuestions />
     }
@@ -135,7 +142,7 @@ class App extends React.Component {
       return (
         <div id="done">
           <p>I have learned all I could learn from you.</p>
-          <p>The answer is {JSON.stringify(this.props.MAPState)}.</p>
+          <p>The answer is {renderState(this.props.MAPState)}.</p>
         </div>);
     }
     if (isThinking) {
@@ -148,6 +155,7 @@ class App extends React.Component {
   }
 
   render() {
+    const renderState = models[this.props.modelID].renderState;
     return (
       <div>
         <p id="prompt">{models[this.props.modelID].prompt}</p>
@@ -162,7 +170,7 @@ class App extends React.Component {
         </div>
         <div id="best-guess">
           <span>Best guess:</span> {' '}
-          {this.props.MAPState ? JSON.stringify(this.props.MAPState) : "none yet"}
+          {this.props.MAPState ? renderState(this.props.MAPState) : "none yet"}
         </div>
       </div>);
   }
