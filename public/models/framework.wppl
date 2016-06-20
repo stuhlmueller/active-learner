@@ -46,7 +46,7 @@ var yesNoMaybeQuestion = function(question) {
         return "maybe";
       } else {
         var answerIsTrue = _sampleAnswer(state, data);
-        var noiseFlip = flip(.1);
+        var noiseFlip = flip(.01);
         if (noiseFlip) {
           return answerIsTrue ? "no" : "yes";
         } else {

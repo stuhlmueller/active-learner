@@ -21,7 +21,7 @@ const models = {
     url: '/models/movies.wppl',
     prompt: 'Here are a few movies. I\'ll try to figure out your ranking.',
     renderState: (state) => {
-      return <ol>{state.map((el) => { return <li>{el}</li>; })}</ol>;
+      return <ol>{state.map((el) => { return <li key={el}>{el}</li>; })}</ol>;
     }
   },
 };
@@ -142,7 +142,8 @@ class App extends React.Component {
       return (
         <div id="done">
           <p>I have learned all I could learn from you.</p>
-          <p>The answer is {renderState(this.props.MAPState)}.</p>
+          <p>The answer is:</p>
+          {renderState(this.props.MAPState)}
         </div>);
     }
     if (isThinking) {
@@ -234,7 +235,7 @@ class AppState extends React.Component {
           MAPState,
           entropy
         });
-        if (bestQuestion.expectedInfoGain < 1e-15) {
+        if (bestQuestion.expectedInfoGain < 0.05) { // 1e-15
           this.setState({
             noInfoToGain: true
           });
