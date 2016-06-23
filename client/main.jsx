@@ -8,13 +8,14 @@ import './main.html';
 
 
 const models = {
-  'number-game': {
-    name: 'Number game',
-    url: '/models/number-game.wppl',
+  'number-game-discrete': {
+    name: 'Number game (discrete)',
+    url: '/models/number-game-discrete.wppl',
     prompt: 'Think of a number between 1 and 100. I\'ll try to guess it.',
     renderState: (state) => {
       return state;
-    }
+    },
+    isContinuous: false
   },
   'movies': {
     name: 'Movie ranking',
@@ -22,8 +23,18 @@ const models = {
     prompt: 'Here are a few movies. I\'ll try to figure out your ranking.',
     renderState: (state) => {
       return <ol>{state.map((el) => { return <li key={el}>{el}</li>; })}</ol>;
-    }
+    },
+    isContinuous: false
   },
+  'number-game-continuous': {
+    name: 'Number game (continuous)',
+    url: '/models/number-game-continuous.wppl',
+    prompt: 'Think of a number between 0 and 1. I\'ll try to guess it.',
+    renderState: (state) => {
+      return state;
+    },
+    isContinuous: true
+  }
 };
 
 
@@ -124,7 +135,7 @@ Question.propTypes = {
 
 
 function OutOfQuestions() {
-    return <p>I'm out of questions.</p>;
+  return <p>I'm out of questions.</p>;
 }
 
 
@@ -235,7 +246,7 @@ class AppState extends React.Component {
           MAPState,
           entropy
         });
-        if (bestQuestion.expectedInfoGain < 0.05) { // 1e-15
+        if (bestQuestion.expectedInfoGain < 0.0001) { // 1e-15
           this.setState({
             noInfoToGain: true
           });
@@ -291,8 +302,11 @@ class WebPPLLoader extends React.Component {
 
   loadWebPPLModel(statusMessage, callback) {
     statusMessage('Loading webppl framework...');
+    const frameworkURL = (models[this.props.modelID].isContinuous ?
+                          '/models/framework-continuous.wppl' :
+                          '/models/framework-discrete.wppl');
     $.ajax({
-      url: '/models/framework.wppl',
+      url: frameworkURL,
       success: (frameworkCode) => {
         statusMessage('Loading model code...');
         $.ajax({

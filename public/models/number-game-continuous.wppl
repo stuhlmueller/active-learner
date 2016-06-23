@@ -1,0 +1,32 @@
+var statePrior = function() {
+  return uniform(0, 1);
+};
+
+
+var questionTypes = {
+
+  "Is the number greater than #1?": {
+    sampleQuestionData: function() {
+      return [statePrior()];
+    },
+    answerDist: function(state, data) {
+      if (state > data[0]) {
+        return Delta({ v: "yes" });
+      } else {
+        return Delta({ v: "no" });
+      }
+    },
+    answerType: {
+      discrete: {
+        values: ["yes", "no"]
+      }
+    }
+  }
+
+};
+
+
+var domain = {
+  questionTypes: questionTypes,
+  statePrior: statePrior
+};

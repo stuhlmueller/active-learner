@@ -1,0 +1,263 @@
+// Utils
+
+var call = function(f, a, b, c) {
+  return f(a, b,c );
+};
+
+var toLog2 = function(x) {
+  return x / Math.log(2);
+}
+
+
+// var KL = function(P, Q) {
+//   var statesP = P.support();
+//   var statesQ = Q.support();
+//   return sum(map(
+//     function(state) {
+//       var scoreP = toLog2(P.score(state));
+//       var scoreQ = toLog2(Q.score(state));
+//       var probP = Math.pow(2, scoreP);
+//       // P(i) * log[ P(i) / Q(i) ] =  P(i) * [log(P(i) - log(Q(i)))]
+//       return probP * (scoreP - scoreQ);
+//     },
+//     statesP));
+// };
+
+
+// var boolToYesNo = function(bool) {
+//   return bool ? "yes" : "no";
+// };
+
+
+// var mixWithUniform = function(sampler, support, epsilon) {
+//   return function() {
+//     if (flip(epsilon)) {
+//       return uniformDraw(support);
+//     } else {
+//       return sampler();
+//     }
+//   };
+// }
+
+
+// Question spec
+
+// var types = {
+//   yesNo: {
+//     discrete: {
+//       values: ["yes", "no"]
+//     }
+//   },
+//   yesNoMaybe: {
+//     discrete: {
+//       values: ["yes", "no"]
+//     }
+//   }
+// };
+
+// var yesNoQuestion = function(question) {
+//   return {
+//     sampleQuestionData: question.sampleQuestionData || function(){ return []; },
+//     answerDist: function(state, data) {
+//       return Enumerate(
+//         mixWithUniform(
+//           function(){
+//             return boolToYesNo(call(question.sampleAnswer, state, data));
+//           },
+//           ["yes", "no"], .01));
+//     },
+//     answerType: types.yesNo
+//   };
+// };
+
+// var yesNoMaybeQuestion = function(question) {
+//   return {
+//     sampleQuestionData: question.sampleQuestionData || function(){ return []; },
+//     answerDist: function(state, data) {
+//       return Enumerate(
+//         mixWithUniform(
+//           function(){
+//             return flip(.2) ? "maybe" : boolToYesNo(call(question.sampleAnswer, state, data));
+//           },
+//           ["yes", "no", "maybe"], .01));
+//     },
+//     answerType: types.yesNoMaybe
+//   };
+// };
+
+
+
+// Model
+
+// var update = function(statePrior, question, actualAnswer){
+//   // We can use enumerate here since statePrior is a finite approximation
+//   var answerDist = question.answerDist;
+//   var out = Infer({method: "enumerate"}, function(){
+//     var state = sample(statePrior);
+//     factor(answerDist(state, question.questionData).score(actualAnswer));
+//     return state;
+//   });
+//   return out;
+// };
+
+
+// var makeAnswerPrior = function(statePrior, question) {
+//   // We can use enumerate here since statePrior is a finite approximation
+//   var answerDist = question.answerDist;
+//   return Infer(
+//     {method: 'enumerate'},
+//     function() {
+//       var state = sample(statePrior);
+//       var answer = sample(answerDist(state, question.questionData));
+//       return answer;
+//     });
+// };
+
+
+// var expectedInfoGain = function(statePrior, question) {
+//   // We can use enumerate here since statePrior is a finite approximation
+//   var answerPrior = makeAnswerPrior(statePrior, question);
+//   return expectation(Infer({method: "enumerate"}, function(){
+//     var answer = sample(answerPrior);
+//     var statePosterior = update(statePrior, question, answer);
+//     return KL(statePosterior, statePrior);
+//   }));
+// };
+
+var expectedInfoGain = function(priorDist, question) {
+  var answerDist = question.answerDist;
+
+  var observedDist = Infer({ method: 'rejection', samples: 100 }, function(){
+    var x = sample(priorDist);
+    var y = sample(answerDist(x, question.questionData));
+    return y;
+  }); // ...
+
+  var update = function(dist, y) {
+    return Enumerate(function() {
+      var x = sample(dist);
+      factor(answerDist(x, question.questionData).score(y));  // constant-time
+      return x;
+    });
+  };
+  
+  var eig = expectation(Enumerate(function() {
+    var y = sample(observedDist);
+    var posteriorDist = update(priorDist, y);
+    return expectation(Enumerate(function() {
+      var x = sample(posteriorDist);
+      return toLog2(posteriorDist.score(x)) - toLog2(priorDist.score(x));  // posterior and prior contain same sample values, but reweighted!
+    }));    
+  }));
+  
+  return eig;
+};
+
+var questionExists = function(question, options) {
+  var questions = options.history;
+  var xs = map(
+    function(question) {
+      return options.renderQuestion(question);
+    },
+    questions);
+  var x = options.renderQuestion(question);
+  return (_.indexOf(xs, x) !== -1);
+};
+
+
+var generateQuestions = function(questionTypes) {
+  return Infer(
+    {method: "SMC", particles: 100},
+    function() {
+      var questionText = uniformDraw(_.keys(questionTypes));
+      var type = questionTypes[questionText];
+      var sampleQuestionData = type.sampleQuestionData;
+      return {
+        questionText: questionText,
+        questionData: sampleQuestionData(),
+        answerDist: type.answerDist,
+        answerType: type.answerType
+      };
+    }
+  ).support();  
+};
+
+
+var model = function(questionTypes, statePrior, options) {
+  
+  // Options:
+  // - renderQuestion
+  // - history
+  // - current
+  
+  console.log('Running in webppl with options', options);
+
+  const history = options.history || [];
+
+  // Update on all previous datapoints
+  var stateDist = Infer(
+    {method: "SMC", particles: 100, rejuvSteps: 5},
+    function() {
+      var state = statePrior();
+      map(
+        function(question) {
+          var answerDist = question.answerDist;
+          factor(answerDist(state, question.questionData).score(question.actualAnswer));
+        },
+        history);
+      return state;
+    }
+  );
+
+  // => now stateDist is a finite set of samples
+
+  console.log('Number of support elements:', stateDist.support().length);
+
+  // FIXME: generate questions conditioned on high expected information gain
+
+  var allQuestions = generateQuestions(questionTypes);
+
+  var addExpectedInfoGain = function(questions) {
+    return map(
+      function(question){
+        return _.extend(
+          question,
+          {expectedInfoGain: expectedInfoGain(stateDist, question)});
+      },
+      questions);
+  };
+
+  var candidates = addExpectedInfoGain(allQuestions);
+
+  var sortedCandidates = sort(
+    candidates,
+    function(a, b) { return a > b; },
+    function(o) { return o.expectedInfoGain; });
+
+  if (!options.history) {
+    return {
+      questions: sortedCandidates,
+      MAPState: stateDist.MAP()
+    };
+  }
+
+  var response = {
+    questions: filter(
+      function(question){
+        return !questionExists(question, options);
+      },
+      sortedCandidates
+    ),
+    MAPState: stateDist.MAP().val,
+    entropy: toLog2(stateDist.entropy())
+  };
+
+  return response;
+};
+
+
+var makeModel = function(domain) {
+  return function(options) {
+    return model(domain.questionTypes, domain.statePrior, options);
+  }
+};

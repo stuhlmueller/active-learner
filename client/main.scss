@@ -37,8 +37,15 @@ div#answerInputs {
     margin: 2em;
 }
 
-#done p {
-    margin: .5em 0 .5em 0;
+#done {
+
+    p {
+        margin: .5em 0 .5em 0;
+    }
+
+    ol, ul {
+        text-align: left;
+    }
 }
 
 div#best-guess {
