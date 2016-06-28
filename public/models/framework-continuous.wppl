@@ -198,7 +198,7 @@ var model = function(questionTypes, statePrior, options) {
 
   // Update on all previous datapoints
   var stateDist = Infer(
-    {method: "SMC", particles: 100, rejuvSteps: 5},
+    {method: "SMC", particles: 100, rejuvSteps: 0},
     function() {
       var state = statePrior();
       map(

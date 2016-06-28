@@ -1,0 +1,100 @@
+// Generative model for states
+
+
+var myMapObject = function(fn, obj) {  // redefining via lodash
+  var out = _.fromPairs(
+      map(
+      function(kv) {
+        return [kv[0], fn(kv[0], kv[1])]
+      },
+      _.toPairs(obj))
+  );
+  return out;
+};
+
+var withKeysAsValues = function(keyName, obj) {
+  return _.fromPairs(
+    map(
+      function(pair) {
+        var key = pair[0];
+        var oldValue = pair[1];
+        var newValue = _.extend(_.fromPairs([[keyName, key]]), oldValue);
+        return [key, newValue];
+      },
+      _.toPairs(obj)));
+};
+
+var totalReward = 10;
+
+var contributions = withKeysAsValues('id', {
+  1: { children: [2, 3] },
+  2: { children: [4, 5] },
+  3: { children: [6, 7] },
+  4: {},
+  5: {},
+  6: {},
+  7: {}  
+});
+
+var statePrior = function() {
+  var ratings = myMapObject(
+    function(key, value){
+      return Math.abs(sample(Gaussian({mu: 0, sigma: 1})));
+    },
+    contributions);
+  var total = sum(_.values(ratings));
+  return myMapObject(
+    function(key, value){
+      return _.extend({}, value, { rating: totalReward * ratings[key]/total });
+    },
+    contributions);
+};
+
+var sampleContribID = function() {
+  return uniformDraw(_.keys(contributions));
+};
+
+
+// Questions
+
+var questionTypes = {
+  "What is the minimum you want to pay for contribution #1?": {
+    sampleQuestionData: function() {
+      return [sampleContribID()];
+    },
+    answerDist: function(state, data) {      
+      // 1. look up true value
+      var trueRating = state[data[0]].rating;
+      // 2. sample a number between 0 and true value
+      // - could also allow for error here (numbers > trueRating)
+      return Uniform({ a: 0, b: trueRating });
+    },
+    answerType: {
+      slider: {
+        min: 0,
+        max: totalReward
+      }
+    }
+  },
+  "What is the maximum you want to pay for contribution #1?": {
+    sampleQuestionData: function() {
+      return [sampleContribID()];
+    },
+    answerDist: function(state, data) {      
+      var trueRating = state[data[0]].rating;
+      return Uniform({ a: trueRating, b: totalReward });
+    },
+    answerType: {
+      slider: {
+        min: 0,
+        max: totalReward
+      }
+    }
+  },
+};
+
+
+var domain = {
+  questionTypes: questionTypes,
+  statePrior: statePrior
+};

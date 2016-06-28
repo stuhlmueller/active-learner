@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import lodash from 'lodash';
 import React from 'react';
 import Dropdown from './dropdown.jsx';
 import { Meteor } from 'meteor/meteor';
@@ -6,6 +6,19 @@ import { PropTypes } from 'react';
 import { render } from 'react-dom';
 import './main.html';
 
+
+function renderTree(nodes, rootID) {
+  const root = nodes[rootID];
+  if (root.children) {
+    return (
+      <li key={root.id}>
+        {root.id}: {root.rating.toFixed(3)}
+        <ul>{root.children.map((childID) => { return renderTree(nodes, childID) })}</ul>
+      </li>);
+  } else {
+    return <li key={root.id}>{root.id}: {root.rating.toFixed(3)}</li>;
+  }
+}
 
 const models = {
   'number-game-discrete': {
@@ -32,6 +45,16 @@ const models = {
     prompt: 'Think of a number between 0 and 1. I\'ll try to guess it.',
     renderState: (state) => {
       return state;
+    },
+    isContinuous: true
+  },
+  'dialog': {
+    name: 'Dialog rewards',
+    url: '/models/dialog.wppl',
+    prompt: 'I\'ll try to figure out how much you want to pay for each contribution in a dialog.',
+    renderState: (state) => {
+      const rootID = 1;
+      return <ul>{renderTree(state, rootID)}</ul>;
     },
     isContinuous: true
   }
@@ -120,9 +143,46 @@ DiscreteQuestion.propTypes = {
 };
 
 
+class SliderQuestion extends React.Component {
+
+  handleAnswer(e, value) {
+    this.props.processAnswer(value);
+  }
+
+  render() {
+    return (
+      <div id="question">
+        <div key={questionKey(this.props.question)} id="questionText">
+          {renderQuestion(this.props.question)}
+        </div>
+        {this.props.question.answerType.slider.min} {' '}
+        <input id="slider-input"
+               type="range"
+               min={this.props.question.answerType.slider.min}
+               max={this.props.question.answerType.slider.max} /> {' '}
+        {this.props.question.answerType.slider.max} {' '}
+        <input type="button"
+               value="submit"
+               onClick={(e)=>{this.handleAnswer(e, document.getElementById('slider-input').value)}} />
+      </div>);
+  }
+  
+}
+
+SliderQuestion.propTypes = {
+  processAnswer: PropTypes.func.isRequired,
+  question: PropTypes.object.isRequired,
+};
+
+
 function Question(props) {
-  if (props.question.answerType && props.question.answerType.discrete) {
+  if (!props.question.answerType) {
+    throw new Error(`No answerType given: ${props.question}`);
+  }
+  if (props.question.answerType.discrete) {
     return <DiscreteQuestion {...props} />;
+  } else if (props.question.answerType.slider) {
+    return <SliderQuestion {...props} />;
   } else {
     throw new Error(`Unknown answer type: ${props.question.answerType}`);
   }
@@ -221,7 +281,7 @@ class AppState extends React.Component {
   processAnswer(actualAnswer) {
     const { history, currentQuestion, future } = this.state;
     const newState = {
-      history: history.concat([_.assign({}, currentQuestion, { actualAnswer })]),
+      history: history.concat([lodash.assign({}, currentQuestion, { actualAnswer })]),
       currentQuestion: future[0],
       future: future.slice(1)
     };
@@ -366,12 +426,12 @@ class ModelSelector extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      modelID: _.keys(models)[0]
+      modelID: lodash.keys(models)[0]
     };
   }
 
   render() {
-    const options = _.keys(models).map((id) => {
+    const options = lodash.keys(models).map((id) => {
       return {
         value: id,
         label: models[id].name
