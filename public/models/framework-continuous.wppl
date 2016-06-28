@@ -194,6 +194,8 @@ var model = function(questionTypes, statePrior, options) {
 
   const history = options.history || [];
 
+  console.log('Updating on previous datapoints');
+
   // Update on all previous datapoints
   var stateDist = Infer(
     {method: "SMC", particles: 100, rejuvSteps: 5},
@@ -233,16 +235,9 @@ var model = function(questionTypes, statePrior, options) {
     candidates,
     function(a, b) { return a > b; },
     function(o) { return o.expectedInfoGain; });
-
-  if (!options.history) {
-    return {
-      questions: sortedCandidates,
-      MAPState: stateDist.MAP()
-    };
-  }
-
+  
   var response = {
-    questions: filter(
+    questions: !options.history ? sortedCandidates : filter(
       function(question){
         return !questionExists(question, options);
       },

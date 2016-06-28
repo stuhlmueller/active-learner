@@ -206,15 +206,15 @@ class AppState extends React.Component {
 
   constructor(props) {
     super(props);
-    const { questions } = this.props.initialWebPPLResult;
+    const { questions, MAPState, entropy } = this.props.initialWebPPLResult;
     this.state = {
       history: [],
       currentQuestion: questions[0],
       future: questions.slice(1),
       noInfoToGain: false,
       isThinking: false,
-      MAPState: null,
-      entropy: null
+      MAPState,
+      entropy
     };
   }
 

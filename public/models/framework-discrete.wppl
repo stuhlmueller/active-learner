@@ -173,15 +173,8 @@ var model = function(questionTypes, statePrior, options) {
     function(a, b) { return a > b; },
     function(o) { return o.expectedInfoGain; });
 
-  if (!options.history) {
-    return {
-      questions: sortedCandidates,
-      MAPState: stateDist.MAP()
-    };
-  }
-
   var response = {
-    questions: filter(
+    questions: !options.history ? sortedCandidates : filter(
       function(question){
         return !questionExists(question, options);
       },
